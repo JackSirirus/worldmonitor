@@ -1,11 +1,14 @@
 export interface PanelOptions {
   id: string;
   title: string;
+  titleKey?: string; // Optional i18n key for dynamic title translation
   showCount?: boolean;
   className?: string;
   trackActivity?: boolean;
   infoTooltip?: string;
 }
+
+import { t } from '../i18n';
 
 const PANEL_SPANS_KEY = 'worldmonitor-panel-spans';
 
@@ -49,6 +52,8 @@ export class Panel {
   protected countEl: HTMLElement | null = null;
   protected newBadgeEl: HTMLElement | null = null;
   protected panelId: string;
+  private titleEl: HTMLElement | null = null;
+  private titleKey?: string;
   private tooltipCloseHandler: (() => void) | null = null;
   private resizeHandle: HTMLElement | null = null;
   private isResizing = false;
@@ -70,16 +75,25 @@ export class Panel {
     const headerLeft = document.createElement('div');
     headerLeft.className = 'panel-header-left';
 
-    const title = document.createElement('span');
-    title.className = 'panel-title';
-    title.textContent = options.title;
-    headerLeft.appendChild(title);
+    this.titleKey = options.titleKey;
+    this.titleEl = document.createElement('span');
+    this.titleEl.className = 'panel-title';
+    this.titleEl.textContent = options.titleKey ? t(options.titleKey) : options.title;
+    headerLeft.appendChild(this.titleEl);
+
+    // Listen for language changes to update title
+    const handleLanguageChange = () => {
+      if (this.titleEl && this.titleKey) {
+        this.titleEl.textContent = t(this.titleKey);
+      }
+    };
+    document.addEventListener('languagechanged', handleLanguageChange);
 
     if (options.infoTooltip) {
       const infoBtn = document.createElement('button');
       infoBtn.className = 'panel-info-btn';
       infoBtn.innerHTML = '?';
-      infoBtn.setAttribute('aria-label', 'Show methodology info');
+      infoBtn.setAttribute('aria-label', t('panel.showMethodology'));
 
       const tooltip = document.createElement('div');
       tooltip.className = 'panel-info-tooltip';
@@ -127,7 +141,8 @@ export class Panel {
     // Add resize handle
     this.resizeHandle = document.createElement('div');
     this.resizeHandle.className = 'panel-resize-handle';
-    this.resizeHandle.title = 'Drag to resize (double-click to reset)';
+    this.resizeHandle.title = t('panel.resizeTooltip');
+    this.resizeHandle.setAttribute('aria-label', t('panel.resizeTooltip'));
     this.resizeHandle.draggable = false; // Prevent parent's drag from capturing
     this.element.appendChild(this.resizeHandle);
     this.setupResizeHandlers();
@@ -257,20 +272,22 @@ export class Panel {
     return this.element;
   }
 
-  public showLoading(message = 'Loading'): void {
+  public showLoading(message?: string): void {
+    const displayMessage = message || t('common.loading');
     this.content.innerHTML = `
       <div class="panel-loading">
         <div class="panel-loading-radar">
           <div class="panel-radar-sweep"></div>
           <div class="panel-radar-dot"></div>
         </div>
-        <div class="panel-loading-text">${message}</div>
+        <div class="panel-loading-text">${displayMessage}</div>
       </div>
     `;
   }
 
-  public showError(message = 'Failed to load data'): void {
-    this.content.innerHTML = `<div class="error-message">${message}</div>`;
+  public showError(message?: string): void {
+    const displayMessage = message || t('common.failed');
+    this.content.innerHTML = `<div class="error-message">${displayMessage}</div>`;
   }
 
   public setCount(count: number): void {

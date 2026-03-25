@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-02-13
+title: Add Bilingual Support (Chinese/English)
+description: Implement internationalization (i18n) for WorldMonitor frontend with English, Simplified Chinese (zh-CN), and Traditional Chinese (zh-TW) support.
+owner: claude
+status: completed

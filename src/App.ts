@@ -1,4 +1,6 @@
 import type { NewsItem, Monitor, PanelConfig, MapLayers, RelatedAsset, InternetOutage, SocialUnrestEvent, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster } from '@/types';
+import { t, setLanguage, getCurrentLocale } from './i18n';
+import { getPanelName } from './components/i18n-helper';
 import {
   FEEDS,
   INTEL_SOURCES,
@@ -10,12 +12,12 @@ import {
   DEFAULT_MAP_LAYERS,
   MOBILE_DEFAULT_MAP_LAYERS,
   STORAGE_KEYS,
-  SITE_VARIANT,
+  getVariant,
+  getOtherVariantUrl,
 } from '@/config';
-import { fetchCategoryFeeds, fetchMultipleStocks, fetchCrypto, fetchPredictions, fetchEarthquakes, fetchWeatherAlerts, fetchFredData, fetchInternetOutages, isOutagesConfigured, fetchAisSignals, initAisStream, getAisStatus, disconnectAisStream, isAisConfigured, fetchCableActivity, fetchProtestEvents, getProtestStatus, fetchFlightDelays, fetchMilitaryFlights, fetchMilitaryVessels, initMilitaryVesselStream, isMilitaryVesselTrackingConfigured, initDB, updateBaseline, calculateDeviation, addToSignalHistory, saveSnapshot, cleanOldSnapshots, analysisWorker, fetchPizzIntStatus, fetchGdeltTensions, fetchNaturalEvents, fetchRecentAwards, fetchOilAnalytics } from '@/services';
+import { fetchMultipleStocks, fetchCrypto, fetchPredictions, fetchEarthquakes, fetchWeatherAlerts, fetchFredData, fetchInternetOutages, isOutagesConfigured, fetchAisSignals, initAisStream, getAisStatus, disconnectAisStream, isAisConfigured, fetchCableActivity, fetchProtestEvents, getProtestStatus, fetchFlightDelays, fetchMilitaryFlights, fetchMilitaryVessels, initMilitaryVesselStream, isMilitaryVesselTrackingConfigured, initDB, updateBaseline, calculateDeviation, addToSignalHistory, saveSnapshot, cleanOldSnapshots, analysisWorker, fetchPizzIntStatus, fetchGdeltTensions, fetchNaturalEvents, fetchRecentAwards, fetchOilAnalytics } from '@/services';
 import { fetchCountryMarkets } from '@/services/polymarket';
 import { mlWorker } from '@/services/ml-worker';
-import { clusterNewsHybrid } from '@/services/clustering';
 import { ingestProtests, ingestFlights, ingestVessels, ingestEarthquakes, detectGeoConvergence, geoConvergenceToSignal } from '@/services/geo-convergence';
 import { signalAggregator } from '@/services/signal-aggregator';
 import { updateAndCheck } from '@/services/temporal-baseline';
@@ -25,6 +27,10 @@ import { analyzeFlightsForSurge, surgeAlertToSignal, detectForeignMilitaryPresen
 import { fetchCachedTheaterPosture } from '@/services/cached-theater-posture';
 import { ingestProtestsForCII, ingestMilitaryForCII, ingestNewsForCII, ingestOutagesForCII, ingestConflictsForCII, ingestUcdpForCII, ingestHapiForCII, startLearning, isInLearningMode, calculateCII } from '@/services/country-instability';
 import { dataFreshness, type DataSourceId } from '@/services/data-freshness';
+
+// New layout components
+import { UnifiedNewsPanel } from '@/components/layout/UnifiedNewsPanel';
+
 import { fetchConflictEvents } from '@/services/conflicts';
 import { fetchUcdpClassifications } from '@/services/ucdp';
 import { fetchHapiSummary } from '@/services/hapi';
@@ -65,6 +71,7 @@ import {
   MacroSignalsPanel,
   ETFFlowsPanel,
   StablecoinPanel,
+  AgentPanel,
 } from '@/components';
 import type { SearchResult } from '@/components/SearchModal';
 import { collectStoryData } from '@/services/story-data';
@@ -79,6 +86,76 @@ import { STARTUP_ECOSYSTEMS } from '@/config/startup-ecosystems';
 import { TECH_HQS, ACCELERATORS } from '@/config/tech-geo';
 import type { PredictionMarket, MarketData, ClusteredEvent } from '@/types';
 
+/**
+ * Transform API cluster response to ClusteredEvent format
+ */
+function transformApiClusters(apiClusters: Array<{
+  id: string;
+  primaryTitle: string;
+  primaryLink: string;
+  primarySource: string;
+  sourceCount: number;
+  topSources: Array<{ name: string; tier: number; url: string }>;
+  allItems: Array<{
+    source: string;
+    title: string;
+    link: string;
+    pubDate: string;
+    isAlert: boolean;
+    threat?: { level: string; category: string };
+  }>;
+  firstSeen: string;
+  lastUpdated: string;
+  isAlert: boolean;
+  monitorColor?: string;
+  velocity?: {
+    sourcesPerHour: number;
+    level: string;
+    trend: string;
+    sentiment: string;
+    sentimentScore: number;
+  };
+  threat?: { level: string; category: string };
+  lat?: number;
+  lon?: number;
+  keywords: string[];
+}>): ClusteredEvent[] {
+  return apiClusters.map(cluster => ({
+    id: cluster.id,
+    primaryTitle: cluster.primaryTitle,
+    primaryLink: cluster.primaryLink,
+    primarySource: cluster.primarySource,
+    sourceCount: cluster.sourceCount,
+    topSources: cluster.topSources,
+    allItems: cluster.allItems.map(item => ({
+      source: item.source,
+      title: item.title,
+      link: item.link,
+      pubDate: new Date(item.pubDate),
+      isAlert: item.isAlert,
+      threat: item.threat ? {
+        level: item.threat.level as 'critical' | 'high' | 'medium' | 'low' | 'info',
+        category: item.threat.category as any,
+        confidence: 0.8,
+        source: 'keyword' as const,
+      } : undefined,
+    })),
+    firstSeen: new Date(cluster.firstSeen),
+    lastUpdated: new Date(cluster.lastUpdated),
+    isAlert: cluster.isAlert,
+    monitorColor: cluster.monitorColor,
+    velocity: cluster.velocity as any,
+    threat: cluster.threat ? {
+      level: cluster.threat.level as 'critical' | 'high' | 'medium' | 'low' | 'info',
+      category: cluster.threat.category as any,
+      confidence: 0.8,
+      source: 'keyword' as const,
+    } : undefined,
+    lat: cluster.lat,
+    lon: cluster.lon,
+  }));
+}
+
 export class App {
   private container: HTMLElement;
   private readonly PANEL_ORDER_KEY = 'panel-order';
@@ -92,6 +169,7 @@ export class App {
   private signalModal: SignalModal | null = null;
   private playbackControl: PlaybackControl | null = null;
   private statusPanel: StatusPanel | null = null;
+  private agentPanel: AgentPanel | null = null;
   private exportPanel: ExportPanel | null = null;
   private searchModal: SearchModal | null = null;
   private mobileWarningModal: MobileWarningModal | null = null;
@@ -122,6 +200,7 @@ export class App {
   private initialLoadComplete = false;
   private criticalBannerEl: HTMLElement | null = null;
   private countryIntelModal: CountryIntelModal | null = null;
+  private useNewLayout = true; // Feature flag for new layout
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -136,7 +215,7 @@ export class App {
 
     // Check if variant changed - reset all settings to variant defaults
     const storedVariant = localStorage.getItem('worldmonitor-variant');
-    const currentVariant = SITE_VARIANT;
+    const currentVariant = getVariant();
     console.log(`[App] Variant check: stored="${storedVariant}", current="${currentVariant}"`);
     if (storedVariant !== currentVariant) {
       // Variant changed - use defaults for new variant, clear old settings
@@ -253,6 +332,10 @@ export class App {
     this.setupMobileWarning();
     this.setupPlaybackControl();
     this.setupStatusPanel();
+    // Skip AgentPanel in new layout (orange border panel)
+    if (!this.useNewLayout) {
+      this.setupAgentPanel();
+    }
     this.setupPizzIntIndicator();
     this.setupExportPanel();
     this.setupSearchModal();
@@ -329,9 +412,26 @@ export class App {
     }
   }
 
+  private setupAgentPanel(): void {
+    console.log('[App] Setting up AgentPanel...');
+    try {
+      this.agentPanel = new AgentPanel();
+      const headerLeft = this.container.querySelector('.header-left');
+      console.log('[App] headerLeft found:', !!headerLeft);
+      if (headerLeft) {
+        headerLeft.appendChild(this.agentPanel.getElement());
+        console.log('[App] AgentPanel added to DOM');
+      } else {
+        console.error('[App] headerLeft not found!');
+      }
+    } catch (err) {
+      console.error('[App] Error setting up AgentPanel:', err);
+    }
+  }
+
   private setupPizzIntIndicator(): void {
     // Skip DEFCON indicator for tech/startup variant
-    if (SITE_VARIANT === 'tech') return;
+    if (getVariant() === 'tech') return;
 
     this.pizzintIndicator = new PizzIntIndicator();
     const headerLeft = this.container.querySelector('.header-left');
@@ -660,18 +760,18 @@ export class App {
   }
 
   private setupSearchModal(): void {
-    const searchOptions = SITE_VARIANT === 'tech'
+    const searchOptions = getVariant() === 'tech'
       ? {
-          placeholder: 'Search companies, AI labs, startups, events...',
+          placeholder: t('search.placeholderTech'),
           hint: 'HQs • Companies • AI Labs • Startups • Accelerators • Events',
         }
       : {
-          placeholder: 'Search news, pipelines, bases, markets...',
-          hint: 'News • Hotspots • Conflicts • Bases • Pipelines • Cables • Datacenters',
+          placeholder: t('search.placeholderFull'),
+          hint: t('search.hint'),
         };
     this.searchModal = new SearchModal(this.container, searchOptions);
 
-    if (SITE_VARIANT === 'tech') {
+    if (getVariant() === 'tech') {
       // Tech variant: tech-specific sources
       this.searchModal.registerSource('techcompany', TECH_COMPANIES.map(c => ({
         id: c.id,
@@ -1074,20 +1174,27 @@ export class App {
   }
 
   private renderLayout(): void {
+    // If using new layout, render simplified structure
+    if (this.useNewLayout) {
+      this.renderNewLayout();
+      return;
+    }
+
+    // Original layout
     this.container.innerHTML = `
       <div class="header">
         <div class="header-left">
           <div class="variant-switcher">
-            <a href="${SITE_VARIANT === 'tech' ? 'https://worldmonitor.app' : '#'}"
-               class="variant-option ${SITE_VARIANT !== 'tech' ? 'active' : ''}"
+            <a href="${getVariant() === 'tech' ? getOtherVariantUrl() : '#'}"
+               class="variant-option ${getVariant() !== 'tech' ? 'active' : ''}"
                data-variant="world"
                title="Geopolitical Intelligence">
               <span class="variant-icon">🌍</span>
               <span class="variant-label">WORLD</span>
             </a>
             <span class="variant-divider"></span>
-            <a href="${SITE_VARIANT === 'tech' ? '#' : 'https://tech.worldmonitor.app'}"
-               class="variant-option ${SITE_VARIANT === 'tech' ? 'active' : ''}"
+            <a href="${getVariant() === 'tech' ? '#' : getOtherVariantUrl()}"
+               class="variant-option ${getVariant() === 'tech' ? 'active' : ''}"
                data-variant="tech"
                title="Tech & AI Intelligence">
               <span class="variant-icon">💻</span>
@@ -1117,9 +1224,21 @@ export class App {
               <option value="africa">Africa</option>
               <option value="oceania">Oceania</option>
             </select>
-          </div>
+                   </div>
         </div>
         <div class="header-right">
+          <div class="language-switcher" id="languageSwitcher">
+            <button class="lang-btn" data-current-locale="${getCurrentLocale()}" aria-haspopup="true" aria-label="Change language">
+              <span class="lang-flag"></span>
+              <span class="lang-name"></span>
+              <span class="lang-arrow">▼</span>
+            </button>
+            <div class="lang-dropdown hidden">
+              <button class="lang-option" data-locale="en"><span>🌐</span> English</button>
+              <button class="lang-option" data-locale="zh-cn"><span>🌐</span> 简体</button>
+              <button class="lang-option" data-locale="zh-tw"><span>🌐</span> 繁體</button>
+            </div>
+          </div>
           <button class="search-btn" id="searchBtn"><kbd>⌘K</kbd> Search</button>
           <button class="copy-link-btn" id="copyLinkBtn">Copy Link</button>
           <span class="time-display" id="timeDisplay">--:--:-- UTC</span>
@@ -1132,7 +1251,7 @@ export class App {
         <div class="map-section" id="mapSection">
           <div class="panel-header">
             <div class="panel-header-left">
-              <span class="panel-title">${SITE_VARIANT === 'tech' ? 'Global Tech' : 'Global Situation'}</span>
+              <span class="panel-title">${getVariant() === 'tech' ? t('insights.techBrief') : t('insights.worldBrief')}</span>
             </div>
             <button class="map-pin-btn" id="mapPinBtn" title="Pin map to top">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1177,6 +1296,205 @@ export class App {
     this.renderPanelToggles();
     this.updateTime();
     this.timeIntervalId = setInterval(() => this.updateTime(), 1000);
+  }
+
+  /**
+   * Render new three-column layout
+   */
+  private renderNewLayout(): void {
+    this.container.innerHTML = `
+      <div class="header">
+        <div class="header-left">
+          <div class="variant-switcher">
+            <a href="${getVariant() === 'tech' ? getOtherVariantUrl() : '#'}"
+               class="variant-option ${getVariant() !== 'tech' ? 'active' : ''}"
+               data-variant="world"
+               title="Geopolitical Intelligence">
+              <span class="variant-icon">🌍</span>
+              <span class="variant-label">WORLD</span>
+            </a>
+            <span class="variant-divider"></span>
+            <a href="${getVariant() === 'tech' ? '#' : getOtherVariantUrl()}"
+               class="variant-option ${getVariant() === 'tech' ? 'active' : ''}"
+               data-variant="tech"
+               title="Tech & AI Intelligence">
+              <span class="variant-icon">💻</span>
+              <span class="variant-label">TECH</span>
+            </a>
+          </div>
+          <span class="logo">MONITOR</span><span class="version">v${__APP_VERSION__}</span>
+          <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span>LIVE</span>
+          </div>
+        </div>
+        <div class="header-center">
+          <div class="search-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="${t('common.search') || 'Search...'}" />
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="header-btn" id="languageBtn" title="Language">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="app-layout">
+        <main id="center-content">
+          <div id="mapContainer"></div>
+          <div id="news-panel-container"></div>
+        </main>
+        <aside id="right-sidebar">
+          <div id="reports-container"></div>
+          <div id="chat-container"></div>
+        </aside>
+      </div>
+      <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+          <div class="modal-header">
+            <span class="modal-title">Panel Settings</span>
+            <button class="modal-close" id="modalClose">×</button>
+          </div>
+          <div class="panel-toggle-grid" id="panelToggles"></div>
+        </div>
+      </div>
+      <div class="modal-overlay" id="sourcesModal">
+        <div class="modal sources-modal">
+          <div class="modal-header">
+            <span class="modal-title">News Sources</span>
+            <span class="sources-counter" id="sourcesCounter"></span>
+            <button class="modal-close" id="sourcesModalClose">×</button>
+          </div>
+          <div class="sources-search">
+            <input type="text" id="sourcesSearch" placeholder="Filter sources..." />
+          </div>
+          <div class="sources-toggle-grid" id="sourceToggles"></div>
+          <div class="sources-footer">
+            <button class="sources-select-all" id="sourcesSelectAll">Select All</button>
+            <button class="sources-select-none" id="sourcesSelectNone">Select None</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Initialize new layout components
+    this.initNewLayoutComponents();
+  }
+
+  /**
+   * Initialize new layout components (LeftSidebar, Chat, Reports)
+   */
+  private initNewLayoutComponents(): void {
+    // Initialize layout components
+    try {
+      // Center - News Panel (below map) with category tabs
+      const newsPanelContainer = document.getElementById('news-panel-container');
+      if (newsPanelContainer) {
+        const newsPanel = new UnifiedNewsPanel(newsPanelContainer);
+        newsPanel.mount();
+      }
+
+      // Right sidebar - Reports (top)
+      const reportsContainer = document.getElementById('reports-container');
+      if (reportsContainer) {
+        import('@/components/layout/ReportPanel').then(({ ReportPanel }) => {
+          const reportPanel = new ReportPanel(reportsContainer);
+          reportPanel.mount();
+        }).catch(err => {
+          console.error('[App] Failed to load ReportPanel:', err);
+        });
+      }
+
+      // Right sidebar - AI Chat (bottom)
+      const chatContainer = document.getElementById('chat-container');
+      if (chatContainer) {
+        import('@/components/layout/ChatWindow').then(({ ChatWindow }) => {
+          const chatWindow = new ChatWindow(chatContainer);
+          chatWindow.mount();
+        }).catch(err => {
+          console.error('[App] Failed to load ChatWindow:', err);
+        });
+      }
+
+      // Setup modal event listeners for new layout
+      this.setupNewLayoutModals();
+
+      console.log('[App] New layout components initialized');
+    } catch (err) {
+      console.error('[App] Failed to initialize layout components:', err);
+    }
+
+    // Initialize map (existing functionality)
+    this.initMapForNewLayout();
+  }
+
+  /**
+   * Setup modal event listeners for new layout
+   */
+  private setupNewLayoutModals(): void {
+    // Settings modal close
+    document.getElementById('modalClose')?.addEventListener('click', () => {
+      document.getElementById('settingsModal')?.classList.remove('active');
+    });
+
+    // Click outside to close settings modal
+    document.getElementById('settingsModal')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
+        document.getElementById('settingsModal')?.classList.remove('active');
+      }
+    });
+
+    // Sources modal close
+    document.getElementById('sourcesModalClose')?.addEventListener('click', () => {
+      document.getElementById('sourcesModal')?.classList.remove('active');
+    });
+
+    // Click outside to close sources modal
+    document.getElementById('sourcesModal')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
+        document.getElementById('sourcesModal')?.classList.remove('active');
+      }
+    });
+
+    // Sources search filter
+    document.getElementById('sourcesSearch')?.addEventListener('input', (e) => {
+      const filter = (e.target as HTMLInputElement).value;
+      this.renderSourceToggles(filter);
+    });
+
+    // Sources select all/none
+    document.getElementById('sourcesSelectAll')?.addEventListener('click', () => {
+      this.disabledSources.clear();
+      saveToStorage(STORAGE_KEYS.disabledFeeds, []);
+      const filter = (document.getElementById('sourcesSearch') as HTMLInputElement)?.value || '';
+      this.renderSourceToggles(filter);
+    });
+
+    document.getElementById('sourcesSelectNone')?.addEventListener('click', () => {
+      const allSources = this.getAllSourceNames();
+      this.disabledSources = new Set<string>(allSources);
+      saveToStorage(STORAGE_KEYS.disabledFeeds, Array.from(this.disabledSources));
+      const filter = (document.getElementById('sourcesSearch') as HTMLInputElement)?.value || '';
+      this.renderSourceToggles(filter);
+    });
+  }
+
+  /**
+   * Initialize map for new layout
+   */
+  private initMapForNewLayout(): void {
+    const mapContainer = document.getElementById('mapContainer') as HTMLElement;
+    if (!mapContainer) return;
+
+    this.map = new MapContainer(mapContainer, {
+      zoom: this.isMobile ? 2.5 : 1.0,
+      pan: { x: 0, y: 0 },
+      view: this.isMobile ? 'mena' : 'global',
+      layers: this.mapLayers,
+      timeRange: '7d',
+    });
+
+    this.map.initEscalationGetters();
   }
 
   /**
@@ -1303,6 +1621,56 @@ export class App {
     disconnectAisStream();
   }
 
+  // Map panel IDs to i18n translation keys
+  private getPanelTitleKey(panelId: string): string {
+    const keyMap: Record<string, string> = {
+      'politics': 'panels.worldNews',
+      'tech': 'panels.technology',
+      'finance': 'panels.financialNews',
+      'heatmap': 'panels.sectorHeatmap',
+      'markets': 'panels.markets',
+      'monitors': 'panels.myMonitors',
+      'commodities': 'panels.commodities',
+      'polymarket': 'panels.predictions',
+      'gov': 'panels.government',
+      'intel': 'panels.intelFeed',
+      'crypto': 'panels.crypto',
+      'middleeast': 'panels.middleEast',
+      'layoffs': 'panels.layoffsTracker',
+      'ai': 'panels.aiMl',
+      'startups': 'panels.startupsVc',
+      'vcblogs': 'panels.vcInsightsEssays',
+      'regionalStartups': 'panels.globalStartupNews',
+      'unicorns': 'panels.unicornTracker',
+      'accelerators': 'panels.acceleratorsDemoDays',
+      'funding': 'panels.fundingVc',
+      'producthunt': 'panels.productHunt',
+      'security': 'panels.cybersecurity',
+      'policy': 'panels.aiPolicyRegulation',
+      'hardware': 'panels.semiconductorsHardware',
+      'cloud': 'panels.cloudInfrastructure',
+      'dev': 'panels.developerCommunity',
+      'github': 'panels.githubTrending',
+      'ipo': 'panels.ipoSpac',
+      'thinktanks': 'panels.thinkTanks',
+      'africa': 'panels.africa',
+      'latam': 'panels.latinAmerica',
+      'asia': 'panels.asiaPacific',
+      'energy': 'panels.energyResources',
+      'gdelt-intel': 'panels.liveIntelligence',
+      'cii': 'panels.countryInstability',
+      'cascade': 'panels.infrastructureCascade',
+      'satellite-fires': 'panels.fires',
+      'strategic-risk': 'panels.strategicRiskOverview',
+      'strategic-posture': 'panels.aiStrategicPosture',
+      'events': 'panels.techEvents',
+      'macro-signals': 'panels.marketRadar',
+      'etf-flows': 'panels.btcEtfTracker',
+      'stablecoins': 'panels.stablecoins',
+    };
+    return keyMap[panelId] || '';
+  }
+
   private createPanels(): void {
     const panelsGrid = document.getElementById('panelsGrid')!;
 
@@ -1322,17 +1690,17 @@ export class App {
     this.map.initEscalationGetters();
 
     // Create all panels
-    const politicsPanel = new NewsPanel('politics', 'World / Geopolitical');
+    const politicsPanel = new NewsPanel('politics', t(this.getPanelTitleKey('politics')));
     this.attachRelatedAssetHandlers(politicsPanel);
     this.newsPanels['politics'] = politicsPanel;
     this.panels['politics'] = politicsPanel;
 
-    const techPanel = new NewsPanel('tech', 'Technology / AI');
+    const techPanel = new NewsPanel('tech', t(this.getPanelTitleKey('tech')));
     this.attachRelatedAssetHandlers(techPanel);
     this.newsPanels['tech'] = techPanel;
     this.panels['tech'] = techPanel;
 
-    const financePanel = new NewsPanel('finance', 'Financial News');
+    const financePanel = new NewsPanel('finance', t(this.getPanelTitleKey('finance')));
     this.attachRelatedAssetHandlers(financePanel);
     this.newsPanels['finance'] = financePanel;
     this.panels['finance'] = financePanel;
@@ -1357,12 +1725,12 @@ export class App {
     const predictionPanel = new PredictionPanel();
     this.panels['polymarket'] = predictionPanel;
 
-    const govPanel = new NewsPanel('gov', 'Government / Policy');
+    const govPanel = new NewsPanel('gov', t(this.getPanelTitleKey('gov')));
     this.attachRelatedAssetHandlers(govPanel);
     this.newsPanels['gov'] = govPanel;
     this.panels['gov'] = govPanel;
 
-    const intelPanel = new NewsPanel('intel', 'Intel Feed');
+    const intelPanel = new NewsPanel('intel', t(this.getPanelTitleKey('intel')));
     this.attachRelatedAssetHandlers(intelPanel);
     this.newsPanels['intel'] = intelPanel;
     this.panels['intel'] = intelPanel;
@@ -1370,93 +1738,93 @@ export class App {
     const cryptoPanel = new CryptoPanel();
     this.panels['crypto'] = cryptoPanel;
 
-    const middleeastPanel = new NewsPanel('middleeast', 'Middle East / MENA');
+    const middleeastPanel = new NewsPanel('middleeast', t(this.getPanelTitleKey('middleeast')));
     this.attachRelatedAssetHandlers(middleeastPanel);
     this.newsPanels['middleeast'] = middleeastPanel;
     this.panels['middleeast'] = middleeastPanel;
 
-    const layoffsPanel = new NewsPanel('layoffs', 'Layoffs Tracker');
+    const layoffsPanel = new NewsPanel('layoffs', t(this.getPanelTitleKey('layoffs')));
     this.attachRelatedAssetHandlers(layoffsPanel);
     this.newsPanels['layoffs'] = layoffsPanel;
     this.panels['layoffs'] = layoffsPanel;
 
-    const aiPanel = new NewsPanel('ai', 'AI / ML');
+    const aiPanel = new NewsPanel('ai', t(this.getPanelTitleKey('ai')));
     this.attachRelatedAssetHandlers(aiPanel);
     this.newsPanels['ai'] = aiPanel;
     this.panels['ai'] = aiPanel;
 
     // Tech variant panels
-    const startupsPanel = new NewsPanel('startups', 'Startups & VC');
+    const startupsPanel = new NewsPanel('startups', t(this.getPanelTitleKey('startups')));
     this.attachRelatedAssetHandlers(startupsPanel);
     this.newsPanels['startups'] = startupsPanel;
     this.panels['startups'] = startupsPanel;
 
-    const vcblogsPanel = new NewsPanel('vcblogs', 'VC Insights & Essays');
+    const vcblogsPanel = new NewsPanel('vcblogs', t(this.getPanelTitleKey('vcblogs')));
     this.attachRelatedAssetHandlers(vcblogsPanel);
     this.newsPanels['vcblogs'] = vcblogsPanel;
     this.panels['vcblogs'] = vcblogsPanel;
 
-    const regionalStartupsPanel = new NewsPanel('regionalStartups', 'Global Startup News');
+    const regionalStartupsPanel = new NewsPanel('regionalStartups', t(this.getPanelTitleKey('regionalStartups')));
     this.attachRelatedAssetHandlers(regionalStartupsPanel);
     this.newsPanels['regionalStartups'] = regionalStartupsPanel;
     this.panels['regionalStartups'] = regionalStartupsPanel;
 
-    const unicornsPanel = new NewsPanel('unicorns', 'Unicorn Tracker');
+    const unicornsPanel = new NewsPanel('unicorns', t(this.getPanelTitleKey('unicorns')));
     this.attachRelatedAssetHandlers(unicornsPanel);
     this.newsPanels['unicorns'] = unicornsPanel;
     this.panels['unicorns'] = unicornsPanel;
 
-    const acceleratorsPanel = new NewsPanel('accelerators', 'Accelerators & Demo Days');
+    const acceleratorsPanel = new NewsPanel('accelerators', t(this.getPanelTitleKey('accelerators')));
     this.attachRelatedAssetHandlers(acceleratorsPanel);
     this.newsPanels['accelerators'] = acceleratorsPanel;
     this.panels['accelerators'] = acceleratorsPanel;
 
-    const fundingPanel = new NewsPanel('funding', 'Funding & VC');
+    const fundingPanel = new NewsPanel('funding', t(this.getPanelTitleKey('funding')));
     this.attachRelatedAssetHandlers(fundingPanel);
     this.newsPanels['funding'] = fundingPanel;
     this.panels['funding'] = fundingPanel;
 
-    const producthuntPanel = new NewsPanel('producthunt', 'Product Hunt');
+    const producthuntPanel = new NewsPanel('producthunt', t(this.getPanelTitleKey('producthunt')));
     this.attachRelatedAssetHandlers(producthuntPanel);
     this.newsPanels['producthunt'] = producthuntPanel;
     this.panels['producthunt'] = producthuntPanel;
 
-    const securityPanel = new NewsPanel('security', 'Cybersecurity');
+    const securityPanel = new NewsPanel('security', t(this.getPanelTitleKey('security')));
     this.attachRelatedAssetHandlers(securityPanel);
     this.newsPanels['security'] = securityPanel;
     this.panels['security'] = securityPanel;
 
-    const policyPanel = new NewsPanel('policy', 'AI Policy & Regulation');
+    const policyPanel = new NewsPanel('policy', t(this.getPanelTitleKey('policy')));
     this.attachRelatedAssetHandlers(policyPanel);
     this.newsPanels['policy'] = policyPanel;
     this.panels['policy'] = policyPanel;
 
-    const hardwarePanel = new NewsPanel('hardware', 'Semiconductors & Hardware');
+    const hardwarePanel = new NewsPanel('hardware', t(this.getPanelTitleKey('hardware')));
     this.attachRelatedAssetHandlers(hardwarePanel);
     this.newsPanels['hardware'] = hardwarePanel;
     this.panels['hardware'] = hardwarePanel;
 
-    const cloudPanel = new NewsPanel('cloud', 'Cloud & Infrastructure');
+    const cloudPanel = new NewsPanel('cloud', t(this.getPanelTitleKey('cloud')));
     this.attachRelatedAssetHandlers(cloudPanel);
     this.newsPanels['cloud'] = cloudPanel;
     this.panels['cloud'] = cloudPanel;
 
-    const devPanel = new NewsPanel('dev', 'Developer Community');
+    const devPanel = new NewsPanel('dev', t(this.getPanelTitleKey('dev')));
     this.attachRelatedAssetHandlers(devPanel);
     this.newsPanels['dev'] = devPanel;
     this.panels['dev'] = devPanel;
 
-    const githubPanel = new NewsPanel('github', 'GitHub Trending');
+    const githubPanel = new NewsPanel('github', t(this.getPanelTitleKey('github')));
     this.attachRelatedAssetHandlers(githubPanel);
     this.newsPanels['github'] = githubPanel;
     this.panels['github'] = githubPanel;
 
-    const ipoPanel = new NewsPanel('ipo', 'IPO & SPAC');
+    const ipoPanel = new NewsPanel('ipo', t(this.getPanelTitleKey('ipo')));
     this.attachRelatedAssetHandlers(ipoPanel);
     this.newsPanels['ipo'] = ipoPanel;
     this.panels['ipo'] = ipoPanel;
 
-    const thinktanksPanel = new NewsPanel('thinktanks', 'Think Tanks');
+    const thinktanksPanel = new NewsPanel('thinktanks', t(this.getPanelTitleKey('thinktanks')));
     this.attachRelatedAssetHandlers(thinktanksPanel);
     this.newsPanels['thinktanks'] = thinktanksPanel;
     this.panels['thinktanks'] = thinktanksPanel;
@@ -1465,28 +1833,28 @@ export class App {
     this.panels['economic'] = economicPanel;
 
     // New Regional Panels
-    const africaPanel = new NewsPanel('africa', 'Africa');
+    const africaPanel = new NewsPanel('africa', t(this.getPanelTitleKey('africa')));
     this.attachRelatedAssetHandlers(africaPanel);
     this.newsPanels['africa'] = africaPanel;
     this.panels['africa'] = africaPanel;
 
-    const latamPanel = new NewsPanel('latam', 'Latin America');
+    const latamPanel = new NewsPanel('latam', t(this.getPanelTitleKey('latam')));
     this.attachRelatedAssetHandlers(latamPanel);
     this.newsPanels['latam'] = latamPanel;
     this.panels['latam'] = latamPanel;
 
-    const asiaPanel = new NewsPanel('asia', 'Asia-Pacific');
+    const asiaPanel = new NewsPanel('asia', t(this.getPanelTitleKey('asia')));
     this.attachRelatedAssetHandlers(asiaPanel);
     this.newsPanels['asia'] = asiaPanel;
     this.panels['asia'] = asiaPanel;
 
-    const energyPanel = new NewsPanel('energy', 'Energy & Resources');
+    const energyPanel = new NewsPanel('energy', t(this.getPanelTitleKey('energy')));
     this.attachRelatedAssetHandlers(energyPanel);
     this.newsPanels['energy'] = energyPanel;
     this.panels['energy'] = energyPanel;
 
     // Geopolitical-only panels (not needed for tech variant)
-    if (SITE_VARIANT === 'full') {
+    if (getVariant() === 'full') {
       const gdeltIntelPanel = new GdeltIntelPanel();
       this.panels['gdelt-intel'] = gdeltIntelPanel;
 
@@ -1734,6 +2102,9 @@ export class App {
   }
 
   private setupEventListeners(): void {
+    // Language switcher
+    this.setupLanguageSwitcher();
+
     // Search button
     document.getElementById('searchBtn')?.addEventListener('click', () => {
       this.updateSearchIndex();
@@ -1747,10 +2118,10 @@ export class App {
       const button = document.getElementById('copyLinkBtn');
       try {
         await this.copyToClipboard(shareUrl);
-        this.setCopyLinkFeedback(button, 'Copied!');
+        this.setCopyLinkFeedback(button, t('common.copied'));
       } catch (error) {
         console.warn('Failed to copy share link:', error);
-        this.setCopyLinkFeedback(button, 'Copy failed');
+        this.setCopyLinkFeedback(button, t('common.copyFailed'));
       }
     });
 
@@ -1964,6 +2335,74 @@ export class App {
     });
   }
 
+  private setupLanguageSwitcher(): void {
+    const switcher = document.getElementById('languageSwitcher') as HTMLElement;
+    if (!switcher) return;
+
+    // Render current language
+    const updateSwitcherUI = () => {
+      const current = getCurrentLocale();
+      const flags: Record<string, string> = {
+        en: '🌐',
+        'zh-cn': '🇨🇳',
+        'zh-tw': '🇹🇰',
+      };
+      const names: Record<string, string> = {
+        en: 'English',
+        'zh-cn': '简体',
+        'zh-tw': '繁體',
+      };
+
+      const langFlag = switcher.querySelector('.lang-flag') as HTMLElement;
+      const langName = switcher.querySelector('.lang-name') as HTMLElement;
+      langFlag.textContent = flags[current] || '';
+      langName.textContent = names[current] || '';
+      switcher.setAttribute('data-current-locale', current);
+    };
+
+    // Handle button click - toggle dropdown
+    switcher.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      switcher.classList.toggle('open');
+      const dropdown = switcher.querySelector('.lang-dropdown') as HTMLElement;
+      dropdown.classList.toggle('hidden');
+      (switcher.querySelector('.lang-arrow') as HTMLElement).style.transform =
+        dropdown.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+
+    // Handle dropdown option click
+    switcher.querySelectorAll('.lang-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const locale = (btn as HTMLElement).dataset.locale as 'en' | 'zh-cn' | 'zh-tw';
+        setLanguage(locale);
+        updateSwitcherUI();
+        // Hide dropdown
+        switcher.classList.remove('open');
+        (switcher.querySelector('.lang-dropdown') as HTMLElement).classList.add('hidden');
+        (switcher.querySelector('.lang-arrow') as HTMLElement).style.transform = 'rotate(0deg)';
+        // Re-render all panels to update translations
+        this.renderLayout();
+      });
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!switcher.contains(e.target as Node)) {
+        switcher.classList.remove('open');
+        const dropdown = switcher.querySelector('.lang-dropdown') as HTMLElement;
+        dropdown.classList.add('hidden');
+        (switcher.querySelector('.lang-arrow') as HTMLElement).style.transform = 'rotate(0deg)';
+      }
+    });
+
+    // Re-render when language changes
+    document.addEventListener('languagechanged', updateSwitcherUI);
+
+    // Initial render
+    updateSwitcherUI();
+  }
+
   private setupMapPin(): void {
     const mapSection = document.getElementById('mapSection');
     const pinBtn = document.getElementById('mapPinBtn');
@@ -1990,7 +2429,7 @@ export class App {
         ([key, panel]) => `
         <div class="panel-toggle-item ${panel.enabled ? 'active' : ''}" data-panel="${key}">
           <div class="panel-toggle-checkbox">${panel.enabled ? '✓' : ''}</div>
-          <span class="panel-toggle-label">${panel.name}</span>
+          <span class="panel-toggle-label">${getPanelName(key)}</span>
         </div>
       `
       )
@@ -2147,23 +2586,23 @@ export class App {
 
     // Load intelligence signals for CII calculation (protests, military, outages)
     // Only for geopolitical variant - tech variant doesn't need CII/focal points
-    if (SITE_VARIANT === 'full') {
+    if (getVariant() === 'full') {
       tasks.push({ name: 'intelligence', task: runGuarded('intelligence', () => this.loadIntelligenceSignals()) });
     }
 
     // Conditionally load non-intelligence layers
     // NOTE: outages, protests, military are handled by loadIntelligenceSignals() above
     // They update the map when layers are enabled, so no duplicate tasks needed here
-    if (SITE_VARIANT === 'full') tasks.push({ name: 'firms', task: runGuarded('firms', () => this.loadFirmsData()) });
+    if (getVariant() === 'full') tasks.push({ name: 'firms', task: runGuarded('firms', () => this.loadFirmsData()) });
     if (this.mapLayers.natural) tasks.push({ name: 'natural', task: runGuarded('natural', () => this.loadNatural()) });
     if (this.mapLayers.weather) tasks.push({ name: 'weather', task: runGuarded('weather', () => this.loadWeatherAlerts()) });
     if (this.mapLayers.ais) tasks.push({ name: 'ais', task: runGuarded('ais', () => this.loadAisSignals()) });
     if (this.mapLayers.cables) tasks.push({ name: 'cables', task: runGuarded('cables', () => this.loadCableActivity()) });
     if (this.mapLayers.flights) tasks.push({ name: 'flights', task: runGuarded('flights', () => this.loadFlightDelays()) });
-    if (this.mapLayers.techEvents || SITE_VARIANT === 'tech') tasks.push({ name: 'techEvents', task: runGuarded('techEvents', () => this.loadTechEvents()) });
+    if (this.mapLayers.techEvents || getVariant() === 'tech') tasks.push({ name: 'techEvents', task: runGuarded('techEvents', () => this.loadTechEvents()) });
 
     // Tech Readiness panel (tech variant only)
-    if (SITE_VARIANT === 'tech') {
+    if (getVariant() === 'tech') {
       tasks.push({ name: 'techReadiness', task: runGuarded('techReadiness', () => (this.panels['tech-readiness'] as TechReadinessPanel)?.refresh()) });
     }
 
@@ -2284,150 +2723,66 @@ export class App {
     }
   }
 
-  private async loadNewsCategory(category: string, feeds: typeof FEEDS.politics): Promise<NewsItem[]> {
-    try {
-      const panel = this.newsPanels[category];
-      const renderIntervalMs = 250;
-      let lastRenderTime = 0;
-      let renderTimeout: ReturnType<typeof setTimeout> | null = null;
-      let pendingItems: NewsItem[] | null = null;
-
-      // Filter out disabled sources
-      const enabledFeeds = (feeds ?? []).filter(f => !this.disabledSources.has(f.name));
-      if (enabledFeeds.length === 0) {
-        if (panel) panel.showError('All sources disabled');
-        this.statusPanel?.updateFeed(category.charAt(0).toUpperCase() + category.slice(1), {
-          status: 'ok',
-          itemCount: 0,
-        });
-        return [];
-      }
-
-      const flushPendingRender = () => {
-        if (!panel || !pendingItems) return;
-        panel.renderNews(pendingItems);
-        pendingItems = null;
-        lastRenderTime = Date.now();
-      };
-
-      const scheduleRender = (partialItems: NewsItem[]) => {
-        if (!panel) return;
-        pendingItems = partialItems;
-        const elapsed = Date.now() - lastRenderTime;
-        if (elapsed >= renderIntervalMs) {
-          if (renderTimeout) {
-            clearTimeout(renderTimeout);
-            renderTimeout = null;
-          }
-          flushPendingRender();
-          return;
-        }
-
-        if (!renderTimeout) {
-          renderTimeout = setTimeout(() => {
-            renderTimeout = null;
-            flushPendingRender();
-          }, renderIntervalMs - elapsed);
-        }
-      };
-
-      const items = await fetchCategoryFeeds(enabledFeeds, {
-        onBatch: (partialItems) => {
-          scheduleRender(partialItems);
-          this.flashMapForNews(partialItems);
-        },
-      });
-
-      if (panel) {
-        if (renderTimeout) {
-          clearTimeout(renderTimeout);
-          renderTimeout = null;
-          pendingItems = null;
-        }
-        panel.renderNews(items);
-
-        const baseline = await updateBaseline(`news:${category}`, items.length);
-        const deviation = calculateDeviation(items.length, baseline);
-        panel.setDeviation(deviation.zScore, deviation.percentChange, deviation.level);
-      }
-
-      this.statusPanel?.updateFeed(category.charAt(0).toUpperCase() + category.slice(1), {
-        status: 'ok',
-        itemCount: items.length,
-      });
-      this.statusPanel?.updateApi('RSS2JSON', { status: 'ok' });
-
-      return items;
-    } catch (error) {
-      this.statusPanel?.updateFeed(category.charAt(0).toUpperCase() + category.slice(1), {
-        status: 'error',
-        errorMessage: String(error),
-      });
-      this.statusPanel?.updateApi('RSS2JSON', { status: 'error' });
-      return [];
-    }
-  }
-
   private async loadNews(): Promise<void> {
-    // Build categories dynamically based on what feeds exist
-    const allCategories = [
-      { key: 'politics', feeds: FEEDS.politics },
-      { key: 'tech', feeds: FEEDS.tech },
-      { key: 'finance', feeds: FEEDS.finance },
-      { key: 'gov', feeds: FEEDS.gov },
-      { key: 'middleeast', feeds: FEEDS.middleeast },
-      { key: 'africa', feeds: FEEDS.africa },
-      { key: 'latam', feeds: FEEDS.latam },
-      { key: 'asia', feeds: FEEDS.asia },
-      { key: 'energy', feeds: FEEDS.energy },
-      { key: 'layoffs', feeds: FEEDS.layoffs },
-      { key: 'ai', feeds: FEEDS.ai },
-      { key: 'thinktanks', feeds: FEEDS.thinktanks },
-      // Tech variant categories
-      { key: 'startups', feeds: FEEDS.startups },
-      { key: 'vcblogs', feeds: FEEDS.vcblogs },
-      { key: 'regionalStartups', feeds: FEEDS.regionalStartups },
-      { key: 'unicorns', feeds: FEEDS.unicorns },
-      { key: 'accelerators', feeds: FEEDS.accelerators },
-      { key: 'funding', feeds: FEEDS.funding },
-      { key: 'producthunt', feeds: FEEDS.producthunt },
-      { key: 'security', feeds: FEEDS.security },
-      { key: 'policy', feeds: FEEDS.policy },
-      { key: 'hardware', feeds: FEEDS.hardware },
-      { key: 'cloud', feeds: FEEDS.cloud },
-      { key: 'dev', feeds: FEEDS.dev },
-      { key: 'github', feeds: FEEDS.github },
-      { key: 'ipo', feeds: FEEDS.ipo },
-    ];
-    // Filter to only categories that have feeds defined
-    const categories = allCategories.filter(c => c.feeds && c.feeds.length > 0);
+    // Check if RSS refresh is needed (any source hasn't been fetched in 30 minutes)
+    try {
+      const refreshCheck = await fetch('/api/rss-collector/refresh-needed');
+      const refreshData = await refreshCheck.json();
 
-    // Fetch all categories in parallel
-    const categoryResults = await Promise.allSettled(
-      categories.map(({ key, feeds }) => this.loadNewsCategory(key, feeds))
-    );
-
-    // Collect successful results
-    const collectedNews: NewsItem[] = [];
-    categoryResults.forEach((result, idx) => {
-      if (result.status === 'fulfilled') {
-        collectedNews.push(...result.value);
-      } else {
-        console.error(`[App] News category ${categories[idx]?.key} failed:`, result.reason);
+      if (refreshData.needsRefresh) {
+        console.log(`[App] RSS refresh needed (${refreshData.staleSourceCount} stale sources), fetching latest news...`);
+        // Trigger RSS collection in background
+        fetch('/api/rss-collector/collect', { method: 'POST' }).catch(err => {
+          console.error('[App] Background RSS collection failed:', err);
+        });
       }
-    });
+    } catch (err) {
+      console.warn('[App] Failed to check RSS refresh status:', err);
+    }
 
-    // Intel (uses different source) - full variant only (defense/military news)
-    if (SITE_VARIANT === 'full') {
-      const enabledIntelSources = INTEL_SOURCES.filter(f => !this.disabledSources.has(f.name));
+    // Load news from database
+    const collectedNews: NewsItem[] = [];
+
+    try {
+      // Fetch all news from database
+      const response = await fetch('/api/news?page=1&limit=100');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.items && data.items.length > 0) {
+          // Transform database items to NewsItem format
+          for (const item of data.items) {
+            collectedNews.push({
+              source: item.source || 'Unknown',
+              title: item.title,
+              link: item.url || '',
+              pubDate: new Date(item.pub_date),
+              isAlert: (item.threat_level === 'critical' || item.threat_level === 'high'),
+              tier: item.threat_level === 'critical' ? 1 : item.threat_level === 'high' ? 2 : item.threat_level === 'medium' ? 3 : 4,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[App] Failed to load news from database:', err);
+    }
+
+    // Intel (uses database news with defense/intl/research categories) - full variant only
+    if (getVariant() === 'full') {
       const intelPanel = this.newsPanels['intel'];
-      if (enabledIntelSources.length === 0) {
-        if (intelPanel) intelPanel.showError('All Intel sources disabled');
-        this.statusPanel?.updateFeed('Intel', { status: 'ok', itemCount: 0 });
-      } else {
-        const intelResult = await Promise.allSettled([fetchCategoryFeeds(enabledIntelSources)]);
-        if (intelResult[0]?.status === 'fulfilled') {
-          const intel = intelResult[0].value;
+      try {
+        // Fetch defense, intl, research categories from database
+        const response = await fetch('/api/news?category=defense,intl,research&limit=50');
+        if (response.ok) {
+          const data = await response.json();
+          const intel: NewsItem[] = (data.items || []).map((item: any) => ({
+            source: item.source || 'Unknown',
+            title: item.title,
+            link: item.url || '',
+            pubDate: new Date(item.pub_date),
+            isAlert: (item.threat_level === 'critical' || item.threat_level === 'high'),
+            tier: item.threat_level === 'critical' ? 1 : item.threat_level === 'high' ? 2 : item.threat_level === 'medium' ? 3 : 4,
+          }));
+
           if (intelPanel) {
             intelPanel.renderNews(intel);
             const baseline = await updateBaseline('news:intel', intel.length);
@@ -2438,8 +2793,13 @@ export class App {
           collectedNews.push(...intel);
           this.flashMapForNews(intel);
         } else {
-          console.error('[App] Intel feed failed:', intelResult[0]?.reason);
+          if (intelPanel) intelPanel.showError(t('common.failedToLoad'));
+          this.statusPanel?.updateFeed('Intel', { status: 'error', itemCount: 0 });
         }
+      } catch (err) {
+        console.error('[App] Intel feed failed:', err);
+        if (intelPanel) intelPanel.showError(t('common.failedToLoad'));
+        this.statusPanel?.updateFeed('Intel', { status: 'error', itemCount: 0 });
       }
     }
 
@@ -2458,14 +2818,18 @@ export class App {
     // Update monitors
     this.updateMonitorResults();
 
-    // Update clusters for correlation analysis (hybrid: semantic + Jaccard when ML available)
+    // Update clusters from backend API
     try {
-      this.latestClusters = mlWorker.isAvailable
-        ? await clusterNewsHybrid(this.allNews)
-        : await analysisWorker.clusterNews(this.allNews);
+      const response = await fetch('/api/clusters');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.clusters && data.clusters.length > 0) {
+          this.latestClusters = transformApiClusters(data.clusters);
+        }
+      }
 
-      // Update AI Insights panel with new clusters (if ML available)
-      if (mlWorker.isAvailable && this.latestClusters.length > 0) {
+      // Update AI Insights panel with clusters
+      if (this.latestClusters.length > 0) {
         const insightsPanel = this.panels['insights'] as InsightsPanel | undefined;
         insightsPanel?.updateInsights(this.latestClusters);
       }
@@ -2604,9 +2968,9 @@ export class App {
   }
 
   private async loadTechEvents(): Promise<void> {
-    console.log('[loadTechEvents] Called. SITE_VARIANT:', SITE_VARIANT, 'techEvents layer:', this.mapLayers.techEvents);
+    console.log('[loadTechEvents] Called. getVariant():', getVariant(), 'techEvents layer:', this.mapLayers.techEvents);
     // Only load for tech variant or if techEvents layer is enabled
-    if (SITE_VARIANT !== 'tech' && !this.mapLayers.techEvents) {
+    if (getVariant() !== 'tech' && !this.mapLayers.techEvents) {
       console.log('[loadTechEvents] Skipping - not tech variant and layer disabled');
       return;
     }
@@ -2646,7 +3010,7 @@ export class App {
       this.statusPanel?.updateFeed('Tech Events', { status: 'ok', itemCount: mapEvents.length });
 
       // Register tech events as searchable source
-      if (SITE_VARIANT === 'tech' && this.searchModal) {
+      if (getVariant() === 'tech' && this.searchModal) {
         this.searchModal.registerSource('techevent', mapEvents.map((e: { id: string; title: string; location: string; startDate: string }) => ({
           id: e.id,
           title: e.title,
@@ -3184,17 +3548,23 @@ export class App {
   }
 
   private updateMonitorResults(): void {
-    const monitorPanel = this.panels['monitors'] as MonitorPanel;
-    monitorPanel.renderResults(this.allNews);
+    const monitorPanel = this.panels['monitors'] as MonitorPanel | undefined;
+    if (monitorPanel) {
+      monitorPanel.renderResults(this.allNews);
+    }
   }
 
   private async runCorrelationAnalysis(): Promise<void> {
     try {
-      // Ensure we have clusters (hybrid: semantic + Jaccard when ML available)
-      if (this.latestClusters.length === 0 && this.allNews.length > 0) {
-        this.latestClusters = mlWorker.isAvailable
-          ? await clusterNewsHybrid(this.allNews)
-          : await analysisWorker.clusterNews(this.allNews);
+      // Ensure we have clusters from backend API
+      if (this.latestClusters.length === 0) {
+        const response = await fetch('/api/clusters');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.clusters && data.clusters.length > 0) {
+            this.latestClusters = transformApiClusters(data.clusters);
+          }
+        }
       }
 
       // Ingest news clusters for CII
@@ -3334,7 +3704,7 @@ export class App {
 
     // Refresh intelligence signals for CII (geopolitical variant only)
     // This handles outages, protests, military - updates map when layers enabled
-    if (SITE_VARIANT === 'full') {
+    if (getVariant() === 'full') {
       this.scheduleRefresh('intelligence', () => {
         this.intelligenceCache = {}; // Clear cache to force fresh fetch
         return this.loadIntelligenceSignals();

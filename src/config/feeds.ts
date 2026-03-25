@@ -1,6 +1,6 @@
 import type { Feed } from '@/types';
-
-const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
+// Get variant at runtime - must use import.meta.env directly to avoid circular dependency
+const VARIANT = (import.meta.env.VITE_VARIANT || 'full') as 'tech' | 'full';
 
 // Helper to create RSS proxy URL (Vercel)
 const rss = (url: string) => `/api/rss-proxy?url=${encodeURIComponent(url)}`;
@@ -642,7 +642,7 @@ const TECH_FEEDS: Record<string, Feed[]> = {
 };
 
 // Variant-aware exports
-export const FEEDS = SITE_VARIANT === 'tech' ? TECH_FEEDS : FULL_FEEDS;
+export const FEEDS = VARIANT === 'tech' ? TECH_FEEDS : FULL_FEEDS;
 
 export const INTEL_SOURCES: Feed[] = [
   // Defense & Security (Tier 1)

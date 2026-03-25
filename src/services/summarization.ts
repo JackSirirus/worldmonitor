@@ -1,13 +1,13 @@
 /**
  * Summarization Service with Fallback Chain
  * Server-side Redis caching handles cross-user deduplication
- * Fallback: Groq -> OpenRouter -> Browser T5
+ * Fallback: MiniMax -> Groq -> OpenRouter -> Browser T5
  */
 
 import { mlWorker } from './ml-worker';
-import { SITE_VARIANT } from '@/config';
+import { getVariant } from '@/config';
 
-export type SummarizationProvider = 'groq' | 'openrouter' | 'browser' | 'cache';
+export type SummarizationProvider = 'minimax' | 'groq' | 'openrouter' | 'browser' | 'cache';
 
 export interface SummarizationResult {
   summary: string;
@@ -17,12 +17,40 @@ export interface SummarizationResult {
 
 export type ProgressCallback = (step: number, total: number, message: string) => void;
 
+async function tryMiniMax(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
+  try {
+    const response = await fetch('/api/minimax-summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: getVariant() }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (data.fallback) return null;
+      throw new Error(`MiniMax error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const provider = data.cached ? 'cache' : 'minimax';
+    console.log(`[Summarization] ${provider === 'cache' ? 'Redis cache hit' : 'MiniMax success'}:`, data.model);
+    return {
+      summary: data.summary,
+      provider: provider as SummarizationProvider,
+      cached: !!data.cached,
+    };
+  } catch (error) {
+    console.warn('[Summarization] MiniMax failed:', error);
+    return null;
+  }
+}
+
 async function tryGroq(headlines: string[], geoContext?: string): Promise<SummarizationResult | null> {
   try {
     const response = await fetch('/api/groq-summarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
+      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: getVariant() }),
     });
 
     if (!response.ok) {
@@ -50,7 +78,7 @@ async function tryOpenRouter(headlines: string[], geoContext?: string): Promise<
     const response = await fetch('/api/openrouter-summarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: SITE_VARIANT }),
+      body: JSON.stringify({ headlines, mode: 'brief', geoContext, variant: getVariant() }),
     });
 
     if (!response.ok) {
@@ -102,7 +130,7 @@ async function tryBrowserT5(headlines: string[]): Promise<SummarizationResult | 
 }
 
 /**
- * Generate a summary using the fallback chain: Groq -> OpenRouter -> Browser T5
+ * Generate a summary using the fallback chain: MiniMax -> Groq -> OpenRouter -> Browser T5
  * Server-side Redis caching is handled by the API endpoints
  * @param geoContext Optional geographic signal context to include in the prompt
  */
@@ -115,24 +143,31 @@ export async function generateSummary(
     return null;
   }
 
-  const totalSteps = 3;
+  const totalSteps = 4;
 
-  // Step 1: Try Groq (fast, 14.4K/day with 8b-instant + Redis cache)
-  onProgress?.(1, totalSteps, 'Connecting to Groq AI...');
+  // Step 1: Try MiniMax (recommended for Chinese users, Coding Plan)
+  onProgress?.(1, totalSteps, 'Connecting to MiniMax AI...');
+  const minimaxResult = await tryMiniMax(headlines, geoContext);
+  if (minimaxResult) {
+    return minimaxResult;
+  }
+
+  // Step 2: Try Groq (fast, 14.4K/day with 8b-instant + Redis cache)
+  onProgress?.(2, totalSteps, 'Trying Groq...');
   const groqResult = await tryGroq(headlines, geoContext);
   if (groqResult) {
     return groqResult;
   }
 
-  // Step 2: Try OpenRouter (fallback, 50/day + Redis cache)
-  onProgress?.(2, totalSteps, 'Trying OpenRouter...');
+  // Step 3: Try OpenRouter (fallback, 50/day + Redis cache)
+  onProgress?.(3, totalSteps, 'Trying OpenRouter...');
   const openRouterResult = await tryOpenRouter(headlines, geoContext);
   if (openRouterResult) {
     return openRouterResult;
   }
 
-  // Step 3: Try Browser T5 (local, unlimited but slower)
-  onProgress?.(3, totalSteps, 'Loading local AI model...');
+  // Step 4: Try Browser T5 (local, unlimited but slower)
+  onProgress?.(4, totalSteps, 'Loading local AI model...');
   const browserResult = await tryBrowserT5(headlines);
   if (browserResult) {
     return browserResult;

@@ -1,16 +1,14 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 interface ETFData {
   ticker: string;
   issuer: string;
   price: number;
-  priceChange: number;
+  change: number;
   volume: number;
-  avgVolume: number;
-  volumeRatio: number;
-  direction: 'inflow' | 'outflow' | 'neutral';
-  estFlow: number;
+  flow: 'inflow' | 'outflow' | 'unknown' | 'neutral';
 }
 
 interface ETFFlowsResult {
@@ -26,7 +24,8 @@ interface ETFFlowsResult {
   etfs: ETFData[];
 }
 
-function formatVolume(v: number): string {
+function formatVolume(v: number | null | undefined): string {
+  if (v === null || v === undefined || isNaN(v)) return 'N/A';
   if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
   if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
   if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
@@ -36,10 +35,12 @@ function formatVolume(v: number): string {
 function flowClass(direction: string): string {
   if (direction === 'inflow') return 'flow-inflow';
   if (direction === 'outflow') return 'flow-outflow';
+  if (direction === 'unknown') return 'flow-neutral';
   return 'flow-neutral';
 }
 
-function changeClass(val: number): string {
+function changeClass(val: number | null | undefined): string {
+  if (val === null || val === undefined || isNaN(val)) return 'change-neutral';
   if (val > 0.1) return 'change-positive';
   if (val < -0.1) return 'change-negative';
   return 'change-neutral';
@@ -52,7 +53,7 @@ export class ETFFlowsPanel extends Panel {
   private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    super({ id: 'etf-flows', title: 'BTC ETF Tracker', showCount: false });
+    super({ id: 'etf-flows', title: t('panels.btcEtfTracker'), titleKey: 'panels.btcEtfTracker', showCount: false });
     void this.fetchData();
     this.refreshInterval = setInterval(() => this.fetchData(), 60000);
   }
@@ -80,12 +81,12 @@ export class ETFFlowsPanel extends Panel {
 
   private renderPanel(): void {
     if (this.loading) {
-      this.showLoading('Loading ETF data...');
+      this.showLoading(t('etfFlows.loadingData'));
       return;
     }
 
     if (this.error || !this.data) {
-      this.showError(this.error || 'No data');
+      this.showError(this.error || t('etfFlows.noData'));
       return;
     }
 
@@ -94,12 +95,12 @@ export class ETFFlowsPanel extends Panel {
     const dirClass = s.netDirection.includes('INFLOW') ? 'flow-inflow' : s.netDirection.includes('OUTFLOW') ? 'flow-outflow' : 'flow-neutral';
 
     const rows = d.etfs.map(etf => `
-      <tr class="etf-row ${flowClass(etf.direction)}">
+      <tr class="etf-row ${flowClass(etf.flow)}">
         <td class="etf-ticker">${escapeHtml(etf.ticker)}</td>
         <td class="etf-issuer">${escapeHtml(etf.issuer)}</td>
-        <td class="etf-flow ${flowClass(etf.direction)}">${etf.direction === 'inflow' ? '+' : etf.direction === 'outflow' ? '-' : ''}$${formatVolume(Math.abs(etf.estFlow))}</td>
+        <td class="etf-flow ${flowClass(etf.flow)}">${etf.flow === 'inflow' ? '+' : etf.flow === 'outflow' ? '-' : ''}${formatVolume(Math.abs(etf.change * etf.volume / 100))}</td>
         <td class="etf-volume">${formatVolume(etf.volume)}</td>
-        <td class="etf-change ${changeClass(etf.priceChange)}">${etf.priceChange > 0 ? '+' : ''}${etf.priceChange.toFixed(2)}%</td>
+        <td class="etf-change ${changeClass(etf.change)}">${etf.change > 0 ? '+' : ''}${etf.change?.toFixed(2) ?? '0.00'}%</td>
       </tr>
     `).join('');
 
@@ -107,19 +108,19 @@ export class ETFFlowsPanel extends Panel {
       <div class="etf-flows-container">
         <div class="etf-summary ${dirClass}">
           <div class="etf-summary-item">
-            <span class="etf-summary-label">Net Flow</span>
+            <span class="etf-summary-label">${t('etfFlows.netFlow')}</span>
             <span class="etf-summary-value ${dirClass}">${escapeHtml(s.netDirection)}</span>
           </div>
           <div class="etf-summary-item">
-            <span class="etf-summary-label">Est. Flow</span>
+            <span class="etf-summary-label">${t('etfFlows.estFlow')}</span>
             <span class="etf-summary-value">$${formatVolume(Math.abs(s.totalEstFlow))}</span>
           </div>
           <div class="etf-summary-item">
-            <span class="etf-summary-label">Total Vol</span>
+            <span class="etf-summary-label">${t('etfFlows.totalVol')}</span>
             <span class="etf-summary-value">${formatVolume(s.totalVolume)}</span>
           </div>
           <div class="etf-summary-item">
-            <span class="etf-summary-label">ETFs</span>
+            <span class="etf-summary-label">${t('etfFlows.etfs')}</span>
             <span class="etf-summary-value">${s.inflowCount}↑ ${s.outflowCount}↓</span>
           </div>
         </div>
@@ -127,11 +128,11 @@ export class ETFFlowsPanel extends Panel {
           <table class="etf-table">
             <thead>
               <tr>
-                <th>Ticker</th>
-                <th>Issuer</th>
-                <th>Est. Flow</th>
-                <th>Volume</th>
-                <th>Change</th>
+                <th>${t('etfFlows.ticker')}</th>
+                <th>${t('etfFlows.issuer')}</th>
+                <th>${t('etfFlows.estFlow')}</th>
+                <th>${t('etfFlows.volume')}</th>
+                <th>${t('etfFlows.change')}</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>

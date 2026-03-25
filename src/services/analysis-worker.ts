@@ -40,7 +40,7 @@ class AnalysisWorkerManager {
   private readyReject: ((error: Error) => void) | null = null;
   private readyTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  private static readonly READY_TIMEOUT_MS = 10000; // 10 seconds to become ready
+  private static readonly READY_TIMEOUT_MS = 30000; // 30 seconds to become ready (may need to load large worker)
 
   /**
    * Initialize the worker. Called lazily on first use.
@@ -153,12 +153,27 @@ class AnalysisWorkerManager {
   }
 
   /**
-   * Wait for worker to be ready
+   * Wait for worker to be ready with retry on failure
    */
-  private async waitForReady(): Promise<void> {
+  private async waitForReady(retries = 2): Promise<void> {
     this.initWorker();
     if (this.isReady) return;
-    await this.readyPromise;
+
+    try {
+      await this.readyPromise;
+    } catch (error) {
+      // Worker failed to initialize, cleanup and retry
+      console.warn('[AnalysisWorker] Worker init failed, retrying...', error);
+      this.cleanup();
+
+      if (retries > 0) {
+        // Small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await this.waitForReady(retries - 1);
+      } else {
+        throw error;
+      }
+    }
   }
 
   /**

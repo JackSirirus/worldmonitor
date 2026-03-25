@@ -1,6 +1,6 @@
 import type { PredictionMarket } from '@/types';
 import { createCircuitBreaker } from '@/utils';
-import { SITE_VARIANT } from '@/config';
+import { getVariant } from '@/config';
 
 interface PolymarketMarket {
   question: string;
@@ -99,7 +99,7 @@ async function fetchTopMarkets(): Promise<PredictionMarket[]> {
 
 export async function fetchPredictions(): Promise<PredictionMarket[]> {
   return breaker.execute(async () => {
-    const tags = SITE_VARIANT === 'tech' ? TECH_TAGS : GEOPOLITICAL_TAGS;
+    const tags = getVariant() === 'tech' ? TECH_TAGS : GEOPOLITICAL_TAGS;
 
     const eventResults = await Promise.all(tags.map(tag => fetchEventsByTag(tag, 20)));
 

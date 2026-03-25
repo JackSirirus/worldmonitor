@@ -1,5 +1,6 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 interface StablecoinData {
   id: string;
@@ -53,7 +54,7 @@ export class StablecoinPanel extends Panel {
   private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    super({ id: 'stablecoins', title: 'Stablecoins', showCount: false });
+    super({ id: 'stablecoins', title: t('panels.stablecoins'), titleKey: 'panels.stablecoins', showCount: false });
     void this.fetchData();
     this.refreshInterval = setInterval(() => this.fetchData(), 60000);
   }
@@ -81,12 +82,12 @@ export class StablecoinPanel extends Panel {
 
   private renderPanel(): void {
     if (this.loading) {
-      this.showLoading('Loading stablecoins...');
+      this.showLoading(t('stablecoin.loadingStablecoins'));
       return;
     }
 
     if (this.error || !this.data) {
-      this.showError(this.error || 'No data');
+      this.showError(this.error || t('stablecoin.noData'));
       return;
     }
 
@@ -120,16 +121,16 @@ export class StablecoinPanel extends Panel {
       <div class="stablecoin-container">
         <div class="stable-health ${healthClass(s.healthStatus)}">
           <span class="health-label">${escapeHtml(s.healthStatus)}</span>
-          <span class="health-detail">MCap: ${formatLargeNum(s.totalMarketCap)} | Vol: ${formatLargeNum(s.totalVolume24h)}</span>
+          <span class="health-detail">${t('stablecoin.mcap')}: ${formatLargeNum(s.totalMarketCap)} | ${t('stablecoin.vol')}: ${formatLargeNum(s.totalVolume24h)}</span>
         </div>
         <div class="stable-section">
-          <div class="stable-section-title">Peg Health</div>
+          <div class="stable-section-title">${t('stablecoin.pegHealth')}</div>
           <div class="stable-peg-list">${pegRows}</div>
         </div>
         <div class="stable-section">
-          <div class="stable-section-title">Supply & Volume</div>
+          <div class="stable-section-title">${t('stablecoin.supplyVolume')}</div>
           <div class="stable-supply-header">
-            <span>Token</span><span>MCap</span><span>24h Vol</span><span>24h Chg</span>
+            <span>${t('stablecoin.token')}</span><span>${t('stablecoin.mcap')}</span><span>${t('stablecoin.vol')}</span><span>${t('stablecoin.chg')}</span>
           </div>
           <div class="stable-supply-list">${supplyRows}</div>
         </div>

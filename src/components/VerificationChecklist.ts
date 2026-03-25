@@ -1,4 +1,5 @@
 import { h, Component } from 'preact';
+import { t } from '@/i18n';
 
 export interface VerificationCheck {
   id: string;
@@ -14,19 +15,21 @@ export interface VerificationResult {
   notes: string[];
 }
 
-const VERIFICATION_TEMPLATE: VerificationCheck[] = [
-  { id: 'recency', label: 'Recent timestamp confirmed', checked: false, icon: '🕐' },
-  { id: 'geolocation', label: 'Location verified', checked: false, icon: '📍' },
-  { id: 'source', label: 'Primary source identified', checked: false, icon: '📰' },
-  { id: 'crossref', label: 'Cross-referenced with other sources', checked: false, icon: '🔗' },
-  { id: 'no_ai', label: 'No AI generation artifacts', checked: false, icon: '🤖' },
-  { id: 'no_recrop', label: 'Not recycled/old footage', checked: false, icon: '🔄' },
-  { id: 'metadata', label: 'Metadata verified', checked: false, icon: '📋' },
-  { id: 'context', label: 'Context established', checked: false, icon: '📖' },
-];
+function getVerificationTemplate(): VerificationCheck[] {
+  return [
+    { id: 'recency', label: t('verification.recency'), checked: false, icon: '🕐' },
+    { id: 'geolocation', label: t('verification.geolocation'), checked: false, icon: '📍' },
+    { id: 'source', label: t('verification.source'), checked: false, icon: '📰' },
+    { id: 'crossref', label: t('verification.crossref'), checked: false, icon: '🔗' },
+    { id: 'no_ai', label: t('verification.noAi'), checked: false, icon: '🤖' },
+    { id: 'no_recrop', label: t('verification.noRecrop'), checked: false, icon: '🔄' },
+    { id: 'metadata', label: t('verification.metadata'), checked: false, icon: '📋' },
+    { id: 'context', label: t('verification.context'), checked: false, icon: '📖' },
+  ];
+}
 
 export class VerificationChecklist extends Component {
-  private checks: VerificationCheck[] = VERIFICATION_TEMPLATE.map(c => ({ ...c }));
+  private checks: VerificationCheck[] = getVerificationTemplate().map(c => ({ ...c }));
   private notes: string[] = [];
   private manualNote: string = '';
 
@@ -59,7 +62,7 @@ export class VerificationChecklist extends Component {
   }
 
   private reset(): void {
-    this.checks = VERIFICATION_TEMPLATE.map(c => ({ ...c }));
+    this.checks = getVerificationTemplate().map(c => ({ ...c }));
     this.notes = [];
     this.manualNote = '';
     this.setState({});

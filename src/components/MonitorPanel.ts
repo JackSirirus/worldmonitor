@@ -3,13 +3,14 @@ import type { Monitor, NewsItem } from '@/types';
 import { MONITOR_COLORS } from '@/config';
 import { generateId, formatTime } from '@/utils';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 export class MonitorPanel extends Panel {
   private monitors: Monitor[] = [];
   private onMonitorsChange?: (monitors: Monitor[]) => void;
 
   constructor(initialMonitors: Monitor[] = []) {
-    super({ id: 'monitors', title: 'My Monitors' });
+    super({ id: 'monitors', title: t('panels.myMonitors'), titleKey: 'panels.myMonitors' });
     this.monitors = initialMonitors;
     this.renderInput();
   }
@@ -19,7 +20,7 @@ export class MonitorPanel extends Panel {
     const inputContainer = document.createElement('div');
     inputContainer.className = 'monitor-input-container';
     inputContainer.innerHTML = `
-      <input type="text" class="monitor-input" id="monitorKeywords" placeholder="Keywords (comma separated)">
+      <input type="text" class="monitor-input" id="monitorKeywords" placeholder="${t('monitor.keywordsPlaceholder')}">
       <button class="monitor-add-btn" id="addMonitorBtn">+ Add Monitor</button>
     `;
 
@@ -99,7 +100,7 @@ export class MonitorPanel extends Panel {
 
     if (this.monitors.length === 0) {
       results.innerHTML =
-        '<div style="color: var(--text-dim); font-size: 10px; margin-top: 12px;">Add keywords to monitor news</div>';
+        `<div style="color: var(--text-dim); font-size: 10px; margin-top: 12px;">${t('monitor.addKeywords')}</div>`;
       return;
     }
 
@@ -131,13 +132,11 @@ export class MonitorPanel extends Panel {
 
     if (unique.length === 0) {
       results.innerHTML =
-        `<div style="color: var(--text-dim); font-size: 10px; margin-top: 12px;">No matches in ${news.length} articles</div>`;
+        `<div style="color: var(--text-dim); font-size: 10px; margin-top: 12px;">${t('monitor.noMatchesCount', { n: news.length })}</div>`;
       return;
     }
 
-    const countText = unique.length > 10
-      ? `Showing 10 of ${unique.length} matches`
-      : `${unique.length} match${unique.length === 1 ? '' : 'es'}`;
+    const countText = t('monitor.showingMatches', { n: unique.length });
 
     results.innerHTML = `
       <div style="color: var(--text-dim); font-size: 10px; margin: 12px 0 8px;">${countText}</div>

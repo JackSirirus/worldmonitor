@@ -3,7 +3,52 @@
 // VITE_VARIANT=tech → startups.worldmonitor.app (tech-focused)
 // VITE_VARIANT=full → worldmonitor.app (geopolitical)
 
-export const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
+// Export the raw compiled variant first to avoid circular dependency issues
+export const COMPILED_VARIANT: 'tech' | 'full' = (import.meta.env.VITE_VARIANT || 'full') as 'tech' | 'full';
+
+/**
+ * Get the current site variant at runtime.
+ * Priority: URL parameter > localStorage > compiled value
+ */
+export function getVariant(): 'tech' | 'full' {
+  // Check URL parameter first
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const urlVariant = params.get('variant');
+    if (urlVariant === 'tech' || urlVariant === 'full') {
+      return urlVariant;
+    }
+    // Check localStorage
+    const stored = localStorage.getItem('worldmonitor-variant');
+    if (stored === 'tech' || stored === 'full') {
+      return stored;
+    }
+  }
+  return COMPILED_VARIANT;
+}
+
+/**
+ * Get the compiled (build-time) variant - useful for initial state
+ */
+export const SITE_VARIANT = COMPILED_VARIANT;
+
+/**
+ * Generate the URL for the other variant using URL parameter
+ * Uses current hostname + port + ?variant= param (works in both dev and prod)
+ */
+export function getOtherVariantUrl(): string {
+  if (typeof window === 'undefined') return '/?variant=full';
+
+  const port = window.location.port ? `:${window.location.port}` : '';
+  const currentVariant = getVariant();
+  const targetVariant = currentVariant === 'tech' ? 'full' : 'tech';
+
+  // Get current search params to preserve them (lang, lat, lon, zoom, etc.)
+  const searchParams = new URLSearchParams(window.location.search);
+  searchParams.set('variant', targetVariant);
+
+  return `${window.location.protocol}//${window.location.hostname}${port}${window.location.pathname}?${searchParams.toString()}`;
+}
 
 // Shared base configuration (always included)
 export {

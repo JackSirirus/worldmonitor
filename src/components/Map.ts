@@ -1,6 +1,7 @@
 import * as d3 from 'd3';
 import * as topojson from 'topojson-client';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import type { Feature, Geometry } from 'geojson';
 import type { MapLayers, Hotspot, NewsItem, Earthquake, InternetOutage, RelatedAsset, AssetType, AisDisruptionEvent, AisDensityZone, CableAdvisory, RepairShip, SocialUnrestEvent, AirportDelayAlert, MilitaryFlight, MilitaryVessel, MilitaryFlightCluster, MilitaryVesselCluster, NaturalEvent } from '@/types';
@@ -27,7 +28,7 @@ import {
   PORTS,
   SPACEPORTS,
   CRITICAL_MINERALS,
-  SITE_VARIANT,
+  getVariant,
   // Tech variant data
   STARTUP_HUBS,
   ACCELERATORS,
@@ -343,7 +344,7 @@ export class MapComponent {
       'natural', 'weather',                               // natural events
       'economic',                                         // economic/geographic
     ];
-    const layers = SITE_VARIANT === 'tech' ? techLayers : fullLayers;
+    const layers = getVariant() === 'tech' ? techLayers : fullLayers;
     const layerLabels: Partial<Record<keyof MapLayers, string>> = {
       ais: 'Shipping',
       flights: 'Delays',
@@ -363,7 +364,7 @@ export class MapComponent {
     const helpBtn = document.createElement('button');
     helpBtn.className = 'layer-help-btn';
     helpBtn.textContent = '?';
-    helpBtn.title = 'Layer descriptions';
+    helpBtn.title = t('map.layerDescriptions');
     helpBtn.addEventListener('click', () => this.showLayerHelp());
     toggles.appendChild(helpBtn);
 
@@ -461,7 +462,7 @@ export class MapComponent {
       </div>
     `;
 
-    popup.innerHTML = SITE_VARIANT === 'tech' ? techHelpContent : fullHelpContent;
+    popup.innerHTML = getVariant() === 'tech' ? techHelpContent : fullHelpContent;
 
     popup.querySelector('.layer-help-close')?.addEventListener('click', () => popup.remove());
 
@@ -498,7 +499,7 @@ export class MapComponent {
     const legend = document.createElement('div');
     legend.className = 'map-legend';
 
-    if (SITE_VARIANT === 'tech') {
+    if (getVariant() === 'tech') {
       // Tech variant legend
       legend.innerHTML = `
         <div class="map-legend-item"><span class="legend-dot" style="background:#8b5cf6"></span>TECH HQ</div>
@@ -1175,7 +1176,7 @@ export class MapComponent {
     }
 
     // APT groups (geopolitical variant only)
-    if (SITE_VARIANT !== 'tech') {
+    if (getVariant() !== 'tech') {
       this.renderAPTMarkers(projection);
     }
 
@@ -1903,7 +1904,7 @@ export class MapComponent {
     }
 
     // Tech Hub Activity Markers (shows activity heatmap for tech hubs with news activity)
-    if (SITE_VARIANT === 'tech' && this.techActivities.length > 0) {
+    if (getVariant() === 'tech' && this.techActivities.length > 0) {
       this.techActivities.forEach((activity) => {
         const pos = projection([activity.lon, activity.lat]);
         if (!pos) return;
@@ -1945,7 +1946,7 @@ export class MapComponent {
     }
 
     // Geo Hub Activity Markers (shows activity heatmap for geopolitical hubs - full variant)
-    if (SITE_VARIANT === 'full' && this.geoActivities.length > 0) {
+    if (getVariant() === 'full' && this.geoActivities.length > 0) {
       this.geoActivities.forEach((activity) => {
         const pos = projection([activity.lon, activity.lat]);
         if (!pos) return;
@@ -2206,7 +2207,7 @@ export class MapComponent {
           const darkIndicator = document.createElement('div');
           darkIndicator.className = 'dark-vessel-indicator';
           darkIndicator.textContent = '⚠️';
-          darkIndicator.title = 'AIS Signal Lost';
+          darkIndicator.title = t('map.aisSignalLost');
           div.appendChild(darkIndicator);
         }
 

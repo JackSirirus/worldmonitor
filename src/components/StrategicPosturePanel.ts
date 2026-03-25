@@ -3,6 +3,7 @@ import { escapeHtml } from '@/utils/sanitize';
 import { fetchCachedTheaterPosture, type CachedTheaterPosture } from '@/services/cached-theater-posture';
 import { fetchMilitaryVessels, isMilitaryVesselTrackingConfigured } from '@/services/military-vessels';
 import { recalcPostureWithVessels, type TheaterPostureSummary } from '@/services/military-surge';
+import { t } from '@/i18n';
 
 export class StrategicPosturePanel extends Panel {
   private postures: TheaterPostureSummary[] = [];
@@ -17,7 +18,8 @@ export class StrategicPosturePanel extends Panel {
   constructor() {
     super({
       id: 'strategic-posture',
-      title: 'AI Strategic Posture',
+      title: t('panels.aiStrategicPosture'),
+      titleKey: 'panels.aiStrategicPosture',
       showCount: false,
       trackActivity: true,
       infoTooltip: `<strong>Methodology</strong>
@@ -64,27 +66,27 @@ export class StrategicPosturePanel extends Panel {
             <div class="posture-radar-sweep"></div>
             <div class="posture-radar-dot"></div>
           </div>
-          <div class="posture-loading-title">Scanning Theaters</div>
+          <div class="posture-loading-title">${t('strategicPosture.scanningTheaters')}</div>
           <div class="posture-loading-stages">
             <div class="posture-stage active">
               <span class="posture-stage-dot"></span>
-              <span>Aircraft positions</span>
+              <span>${t('strategicPosture.aircraftPositions')}</span>
             </div>
             <div class="posture-stage pending">
               <span class="posture-stage-dot"></span>
-              <span>Naval vessels</span>
+              <span>${t('strategicPosture.navalVessels')}</span>
             </div>
             <div class="posture-stage pending">
               <span class="posture-stage-dot"></span>
-              <span>Theater analysis</span>
+              <span>${t('strategicPosture.theaterAnalysis')}</span>
             </div>
           </div>
           <div class="posture-loading-tip">
-            Connecting to live ADS-B &amp; AIS streams...
+            ${t('strategicPosture.connectingToLiveStreams')}
           </div>
-          <div class="posture-loading-elapsed">Elapsed: 0s</div>
+          <div class="posture-loading-elapsed">${t('strategicPosture.elapsed')}: 0s</div>
           <div class="posture-loading-note">
-            Initial load takes 30-60 seconds as tracking data accumulates
+            ${t('strategicPosture.initialLoadTakesTime')}
           </div>
         </div>
       </div>
@@ -98,7 +100,7 @@ export class StrategicPosturePanel extends Panel {
       const elapsed = Math.floor((Date.now() - this.loadingStartTime) / 1000);
       const elapsedEl = this.content.querySelector('.posture-loading-elapsed');
       if (elapsedEl) {
-        elapsedEl.textContent = `Elapsed: ${elapsed}s`;
+        elapsedEl.textContent = `${t('strategicPosture.elapsed')}: ${elapsed}s`;
       }
     }, 1000);
   }
@@ -310,10 +312,10 @@ export class StrategicPosturePanel extends Panel {
       <div class="posture-panel">
         <div class="posture-no-data">
           <div class="posture-no-data-icon pulse">📡</div>
-          <div class="posture-no-data-title">Acquiring Data</div>
+          <div class="posture-no-data-title">${t('strategicPosture.acquiringData')}</div>
           <div class="posture-no-data-desc">
-            Connecting to ADS-B network for military flight data.
-            This may take 30-60 seconds on first load.
+            ${t('strategicPosture.connectingToAdsb')}
+            ${t('strategicPosture.mayTakeTime')}
           </div>
           <div class="posture-data-sources">
             <div class="posture-source">
@@ -325,7 +327,7 @@ export class StrategicPosturePanel extends Panel {
               <span>AIS Vessel Stream</span>
             </div>
           </div>
-          <button class="posture-retry-btn">↻ Retry Now</button>
+          <button class="posture-retry-btn">↻ ${t('strategicPosture.retryNow')}</button>
         </div>
       </div>
     `);
@@ -338,15 +340,15 @@ export class StrategicPosturePanel extends Panel {
       <div class="posture-panel">
         <div class="posture-no-data">
           <div class="posture-no-data-icon">⚠️</div>
-          <div class="posture-no-data-title">Feed Rate Limited</div>
+          <div class="posture-no-data-title">${t('strategicPosture.feedRateLimited')}</div>
           <div class="posture-no-data-desc">
             OpenSky API has request limits. The panel will automatically
             retry in a few minutes, or you can try again now.
           </div>
           <div class="posture-error-hint">
-            <strong>Tip:</strong> Peak hours (UTC 12:00-20:00) often see higher limits.
+            <strong>Tip:</strong> ${t('strategicPosture.peakHoursTip')}
           </div>
-          <button class="posture-retry-btn">↻ Try Again</button>
+          <button class="posture-retry-btn">↻ ${t('strategicPosture.tryAgain')}</button>
         </div>
       </div>
     `);
@@ -356,9 +358,9 @@ export class StrategicPosturePanel extends Panel {
   private getPostureBadge(level: string): string {
     switch (level) {
       case 'critical':
-        return '<span class="posture-badge posture-critical">CRIT</span>';
+        return `<span class="posture-badge posture-critical">${t('strategicRisk.critical').toUpperCase().slice(0, 4)}</span>`;
       case 'elevated':
-        return '<span class="posture-badge posture-elevated">ELEV</span>';
+        return `<span class="posture-badge posture-elevated">${t('strategicRisk.elevated').toUpperCase().slice(0, 4)}</span>`;
       default:
         return '<span class="posture-badge posture-normal">NORM</span>';
     }
@@ -371,7 +373,7 @@ export class StrategicPosturePanel extends Panel {
       case 'decreasing':
         return `<span class="posture-trend trend-down">↘ ${change}%</span>`;
       default:
-        return '<span class="posture-trend trend-stable">→ stable</span>';
+        return `<span class="posture-trend trend-stable">→ ${t('strategicRisk.stable')}</span>`;
     }
   }
 
@@ -385,7 +387,7 @@ export class StrategicPosturePanel extends Panel {
       if (p.totalVessels > 0) chips.push(`<span class="posture-chip naval">⚓ ${p.totalVessels}</span>`);
 
       return `
-        <div class="posture-theater posture-compact" data-lat="${p.centerLat}" data-lon="${p.centerLon}" title="Click to view ${escapeHtml(p.theaterName)} on map">
+        <div class="posture-theater posture-compact" data-lat="${p.centerLat}" data-lon="${p.centerLon}" title="${t('strategicPosture.clickToViewTheater').replace('{theaterName}', escapeHtml(p.theaterName))}">
           <span class="posture-name">${escapeHtml(p.shortName)}</span>
           <div class="posture-chips">${chips.join('')}</div>
           ${this.getPostureBadge(p.postureLevel)}
@@ -395,35 +397,35 @@ export class StrategicPosturePanel extends Panel {
 
     // Build compact stat chips for expanded view
     const airChips: string[] = [];
-    if (p.fighters > 0) airChips.push(`<span class="posture-stat" title="Fighters">✈️ ${p.fighters}</span>`);
-    if (p.tankers > 0) airChips.push(`<span class="posture-stat" title="Tankers">⛽ ${p.tankers}</span>`);
-    if (p.awacs > 0) airChips.push(`<span class="posture-stat" title="AWACS">📡 ${p.awacs}</span>`);
-    if (p.reconnaissance > 0) airChips.push(`<span class="posture-stat" title="Recon">🔍 ${p.reconnaissance}</span>`);
-    if (p.transport > 0) airChips.push(`<span class="posture-stat" title="Transport">📦 ${p.transport}</span>`);
-    if (p.bombers > 0) airChips.push(`<span class="posture-stat" title="Bombers">💣 ${p.bombers}</span>`);
-    if (p.drones > 0) airChips.push(`<span class="posture-stat" title="Drones">🛸 ${p.drones}</span>`);
+    if (p.fighters > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftFighters')}">✈️ ${p.fighters}</span>`);
+    if (p.tankers > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftTankers')}">⛽ ${p.tankers}</span>`);
+    if (p.awacs > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftAwacs')}">📡 ${p.awacs}</span>`);
+    if (p.reconnaissance > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftRecon')}">🔍 ${p.reconnaissance}</span>`);
+    if (p.transport > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftTransport')}">📦 ${p.transport}</span>`);
+    if (p.bombers > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftBombers')}">💣 ${p.bombers}</span>`);
+    if (p.drones > 0) airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftDrones')}">🛸 ${p.drones}</span>`);
     // Fallback: show total aircraft if no typed breakdown available
     if (airChips.length === 0 && p.totalAircraft > 0) {
-      airChips.push(`<span class="posture-stat" title="Aircraft">✈️ ${p.totalAircraft}</span>`);
+      airChips.push(`<span class="posture-stat" title="${t('strategicPosture.aircraftTotal')}">✈️ ${p.totalAircraft}</span>`);
     }
 
     const navalChips: string[] = [];
-    if (p.carriers > 0) navalChips.push(`<span class="posture-stat carrier" title="Carriers">🚢 ${p.carriers}</span>`);
-    if (p.destroyers > 0) navalChips.push(`<span class="posture-stat" title="Destroyers">⚓ ${p.destroyers}</span>`);
-    if (p.frigates > 0) navalChips.push(`<span class="posture-stat" title="Frigates">🛥️ ${p.frigates}</span>`);
-    if (p.submarines > 0) navalChips.push(`<span class="posture-stat" title="Submarines">🦈 ${p.submarines}</span>`);
-    if (p.patrol > 0) navalChips.push(`<span class="posture-stat" title="Patrol">🚤 ${p.patrol}</span>`);
-    if (p.auxiliaryVessels > 0) navalChips.push(`<span class="posture-stat" title="Auxiliary">⚓ ${p.auxiliaryVessels}</span>`);
+    if (p.carriers > 0) navalChips.push(`<span class="posture-stat carrier" title="${t('strategicPosture.navalCarriers')}">🚢 ${p.carriers}</span>`);
+    if (p.destroyers > 0) navalChips.push(`<span class="posture-stat" title="${t('strategicPosture.navalDestroyers')}">⚓ ${p.destroyers}</span>`);
+    if (p.frigates > 0) navalChips.push(`<span class="posture-stat" title="${t('strategicPosture.navalFrigates')}">🛥️ ${p.frigates}</span>`);
+    if (p.submarines > 0) navalChips.push(`<span class="posture-stat" title="${t('strategicPosture.navalSubmarines')}">🦈 ${p.submarines}</span>`);
+    if (p.patrol > 0) navalChips.push(`<span class="posture-stat" title="${t('strategicPosture.navalPatrol')}">🚤 ${p.patrol}</span>`);
+    if (p.auxiliaryVessels > 0) navalChips.push(`<span class="posture-stat" title="${t('strategicPosture.navalAuxiliary')}">⚓ ${p.auxiliaryVessels}</span>`);
     // Fallback: show total vessels if no typed breakdown available
     if (navalChips.length === 0 && p.totalVessels > 0) {
-      navalChips.push(`<span class="posture-stat" title="Naval Vessels">⚓ ${p.totalVessels}</span>`);
+      navalChips.push(`<span class="posture-stat" title="${t('strategicPosture.navalTotal')}">⚓ ${p.totalVessels}</span>`);
     }
 
     const hasAir = airChips.length > 0;
     const hasNaval = navalChips.length > 0;
 
     return `
-      <div class="posture-theater posture-expanded ${p.postureLevel}" data-lat="${p.centerLat}" data-lon="${p.centerLon}" title="Click to view on map">
+      <div class="posture-theater posture-expanded ${p.postureLevel}" data-lat="${p.centerLat}" data-lon="${p.centerLon}" title="${t('strategicPosture.clickToView')}">
         <div class="posture-theater-header">
           <span class="posture-name">${escapeHtml(p.theaterName)}</span>
           ${this.getPostureBadge(p.postureLevel)}
@@ -435,7 +437,7 @@ export class StrategicPosturePanel extends Panel {
         </div>
 
         <div class="posture-footer">
-          ${p.strikeCapable ? '<span class="posture-strike">⚡ STRIKE</span>' : ''}
+          ${p.strikeCapable ? `<span class="posture-strike">⚡ ${t('strategicPosture.strike')}</span>` : ''}
           ${this.getTrendIcon(p.trend, p.changePercent)}
           ${p.targetNation ? `<span class="posture-focus">→ ${escapeHtml(p.targetNation)}</span>` : ''}
         </div>
@@ -455,7 +457,7 @@ export class StrategicPosturePanel extends Panel {
       : new Date().toLocaleTimeString();
 
     const staleWarning = this.isStale
-      ? '<div class="posture-stale-warning">⚠️ Using cached data - live feed temporarily unavailable</div>'
+      ? `<div class="posture-stale-warning">⚠️ ${t('strategicPosture.usingCachedData')}</div>`
       : '';
 
     const html = `
@@ -465,7 +467,7 @@ export class StrategicPosturePanel extends Panel {
 
         <div class="posture-footer">
           <span class="posture-updated">${this.isStale ? '⚠️ ' : ''}Updated: ${updatedTime}</span>
-          <button class="posture-refresh-btn" title="Refresh">↻</button>
+          <button class="posture-refresh-btn" title="${t('strategicPosture.refresh')}">↻</button>
         </div>
       </div>
     `;

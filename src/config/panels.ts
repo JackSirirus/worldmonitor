@@ -1,6 +1,5 @@
 import type { PanelConfig, MapLayers } from '@/types';
-
-const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
+import { getVariant } from './index';
 
 // ============================================
 // FULL VARIANT (Geopolitical)
@@ -40,6 +39,7 @@ const FULL_PANELS: Record<string, PanelConfig> = {
   'macro-signals': { name: 'Market Radar', enabled: true, priority: 2 },
   'etf-flows': { name: 'BTC ETF Tracker', enabled: true, priority: 2 },
   stablecoins: { name: 'Stablecoins', enabled: true, priority: 2 },
+  agent: { name: 'Agent', enabled: true, priority: 1 },
 };
 
 const FULL_MAP_LAYERS: MapLayers = {
@@ -133,6 +133,7 @@ const TECH_PANELS: Record<string, PanelConfig> = {
   producthunt: { name: 'Product Hunt', enabled: true, priority: 1 },
   events: { name: 'Tech Events', enabled: true, priority: 1 },
   'service-status': { name: 'Service Status', enabled: true, priority: 2 },
+  agent: { name: 'Agent', enabled: true, priority: 1 },
   economic: { name: 'Economic Indicators', enabled: true, priority: 2 },
   'tech-readiness': { name: 'Tech Readiness Index', enabled: true, priority: 1 },
   'macro-signals': { name: 'Market Radar', enabled: true, priority: 2 },
@@ -204,9 +205,9 @@ const TECH_MOBILE_MAP_LAYERS: MapLayers = {
 // ============================================
 // VARIANT-AWARE EXPORTS
 // ============================================
-export const DEFAULT_PANELS = SITE_VARIANT === 'tech' ? TECH_PANELS : FULL_PANELS;
-export const DEFAULT_MAP_LAYERS = SITE_VARIANT === 'tech' ? TECH_MAP_LAYERS : FULL_MAP_LAYERS;
-export const MOBILE_DEFAULT_MAP_LAYERS = SITE_VARIANT === 'tech' ? TECH_MOBILE_MAP_LAYERS : FULL_MOBILE_MAP_LAYERS;
+export const DEFAULT_PANELS = getVariant() === 'tech' ? TECH_PANELS : FULL_PANELS;
+export const DEFAULT_MAP_LAYERS = getVariant() === 'tech' ? TECH_MAP_LAYERS : FULL_MAP_LAYERS;
+export const MOBILE_DEFAULT_MAP_LAYERS = getVariant() === 'tech' ? TECH_MOBILE_MAP_LAYERS : FULL_MOBILE_MAP_LAYERS;
 
 export const MONITOR_COLORS = [
   '#44ff88',

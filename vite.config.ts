@@ -1,6 +1,35 @@
 import { defineConfig, type Plugin } from 'vite';
 import { resolve } from 'path';
 import pkg from './package.json';
+import http from 'http';
+
+// Async check if local backend server is running on specified port
+async function checkLocalBackend(port: number, timeout = 2000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const options = {
+      hostname: '127.0.0.1',
+      port,
+      path: '/api/health',
+      method: 'GET',
+      timeout,
+    };
+
+    const req = http.request(options, (res) => {
+      if (res.statusCode === 200) {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
 
 const VARIANT_META: Record<string, {
   title: string;
@@ -119,17 +148,189 @@ function youtubeLivePlugin(): Plugin {
   };
 }
 
+// Auto-detect backend plugin - checks for local backend and sets up proxy middleware
+function autoBackendProxyPlugin(): Plugin {
+  return {
+    name: 'auto-backend-proxy',
+    async configureServer(server) {
+      const port = parseInt(process.env.PORT || '3001', 10);
+      const manualOverride = process.env.VITE_USE_LOCAL_BACKEND;
+
+      const isRunning = await checkLocalBackend(port);
+
+      console.log('\n📡 Vite Proxy Configuration:');
+
+      if (manualOverride === 'true') {
+        console.log(`   Manual Override:        ENABLED (forced)`);
+        console.log(`   Local Backend Running: ${isRunning ? 'YES' : 'NO'}`);
+        if (isRunning) {
+          console.log(`   ➜ Using local backend: http://localhost:${port}`);
+        } else {
+          console.log(`   ⚠️  Backend forced but not running on port ${port}`);
+          console.log(`   ➜ Falling back to external APIs`);
+        }
+      } else if (manualOverride === 'false') {
+        console.log(`   Manual Override:        DISABLED (forced external)`);
+        console.log(`   ➜ Using external API proxies (default)`);
+      } else {
+        console.log(`   Manual Override:        NONE (auto-detect)`);
+        console.log(`   Local Backend Running: ${isRunning ? 'YES' : 'NO'}`);
+        if (isRunning) {
+          console.log(`   ➜ Using local backend: http://localhost:${port}`);
+        } else {
+          console.log(`   ➜ Using external API proxies (default)`);
+        }
+      }
+
+      // If backend detected (or forced), add proxy handling using fetch
+      if (isRunning || manualOverride === 'true') {
+        const targetUrl = `http://localhost:${port}`;
+
+        // Paths that should be proxied to local backend
+        // Only include routes that exist in the backend server
+        // DO NOT include external APIs (Yahoo, CoinGecko, Polymarket, FRED, etc.) - they use Vite's proxy
+        const backendPaths = [
+          '/api/health',
+          '/api/earthquakes',
+          '/api/arxiv',
+          '/api/hackernews',
+          '/api/github-trending',
+          '/api/fwdstart',
+          '/api/tech-events',
+          '/api/etf-flows',
+          '/api/stablecoin-markets',
+          '/api/stock-index',
+          '/api/hapi',
+          '/api/ucdp',
+          '/api/gdelt-doc',
+          '/api/gdelt-geo',
+          '/api/risk-scores',
+          '/api/temporal-baseline',
+          '/api/theater-posture',
+          '/api/classify-event',
+          '/api/finnhub',
+          '/api/eia',
+          '/api/acled',
+          '/api/acled-conflict',
+          '/api/cloudflare-outages',
+          '/api/firms-fires',
+          '/api/country-intel',
+          '/api/groq-summarize',
+          '/api/opensky',
+          '/api/ais-snapshot',
+          '/api/worldbank',
+          '/api/service-status',
+          '/api/macro-signals',
+          '/api/rss-proxy',
+          '/api/youtube-live',
+          '/api/wingbits',
+          '/api/pizzint-dashboard',
+          '/api/pizzint-gdelt',
+          '/api/og-story',
+          '/api/nga-warnings',
+          '/api/faa-status',
+          '/api/story',
+          '/api/openrouter-summarize',
+          '/api/cache-telemetry',
+          '/api/gdelt',
+          '/api/nga-msi',
+          '/api/acled',
+          '/api/adsb-exchange',
+          '/api/opensky',
+        ];
+
+        // Use server.middlewares to add our proxy handler at the beginning
+        server.middlewares.use(async (req, res, next) => {
+          const url = req.url;
+
+          // Only handle specific backend paths
+          if (!url) {
+            return next();
+          }
+
+          // Check if this URL matches any backend path
+          const isBackendPath = backendPaths.some(path =>
+            url.startsWith(path) || url.startsWith(path + '?')
+          );
+
+          if (!isBackendPath) {
+            return next();
+          }
+
+          // Skip OPTIONS preflight here, let Vite handle it
+          if (req.method === 'OPTIONS') {
+            return next();
+          }
+
+          const target = `${targetUrl}${url}`;
+
+          try {
+            // Collect request body if present
+            let body: ArrayBuffer | undefined;
+            if (req.method !== 'GET' && req.method !== 'HEAD') {
+              body = await new Promise<ArrayBuffer>((resolve, reject) => {
+                const chunks: Buffer[] = [];
+                req.on('data', (chunk: Buffer) => chunks.push(chunk));
+                req.on('end', () => resolve(Buffer.concat(chunks).buffer));
+                req.on('error', reject);
+              });
+            }
+
+            // Filter headers - only include string values
+            const headers: Record<string, string> = {};
+            for (const [key, value] of Object.entries(req.headers)) {
+              if (typeof value === 'string') {
+                headers[key] = value;
+              }
+            }
+            headers.host = `localhost:${port}`;
+
+            const response = await fetch(target, {
+              method: req.method,
+              headers,
+              body,
+            });
+
+            const data = await response.arrayBuffer();
+
+            // Set response headers
+            (res as any).statusCode = response.status;
+            res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            res.end(Buffer.from(data));
+          } catch (error) {
+            console.error(`[Auto Backend Proxy] Error proxying ${url}:`, error);
+            (res as any).statusCode = 502;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Backend proxy error', message: error instanceof Error ? error.message : 'Unknown error' }));
+          }
+        });
+
+        console.log(`   ➜ API proxy middleware added`);
+      }
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
-  plugins: [htmlVariantPlugin(), youtubeLivePlugin()],
+  plugins: [htmlVariantPlugin(), youtubeLivePlugin(), autoBackendProxyPlugin()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
     },
   },
   build: {
+    // Use esbuild minifier
+    minify: 'esbuild',
+    // Disable module preload polyfill to avoid initialization issues
+    modulePreload: {
+      polyfill: false,
+    },
     rollupOptions: {
       output: {
         manualChunks: {

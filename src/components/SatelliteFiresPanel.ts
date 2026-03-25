@@ -1,5 +1,6 @@
 import { Panel } from './Panel';
 import type { FireRegionStats } from '@/services/firms-satellite';
+import { t } from '@/i18n';
 
 export class SatelliteFiresPanel extends Panel {
   private stats: FireRegionStats[] = [];
@@ -9,12 +10,13 @@ export class SatelliteFiresPanel extends Panel {
   constructor() {
     super({
       id: 'satellite-fires',
-      title: 'Fires',
+      title: t('panels.fires'),
+      titleKey: 'panels.fires',
       showCount: true,
       trackActivity: true,
       infoTooltip: 'NASA FIRMS VIIRS satellite thermal detections across monitored conflict regions. High-intensity = brightness &gt;360K &amp; confidence &gt;80%.',
     });
-    this.showLoading('Scanning thermal data');
+    this.showLoading(t('satelliteFires.scanningThermal'));
   }
 
   public update(stats: FireRegionStats[], totalCount: number): void {
@@ -33,7 +35,7 @@ export class SatelliteFiresPanel extends Panel {
 
   private render(): void {
     if (this.stats.length === 0) {
-      this.setContent('<div class="panel-empty">No fire data available</div>');
+      this.setContent(`<div class="panel-empty">${t('satelliteFires.noFireData')}</div>`);
       return;
     }
 
@@ -59,16 +61,16 @@ export class SatelliteFiresPanel extends Panel {
         <table class="fires-table">
           <thead>
             <tr>
-              <th>Region</th>
-              <th>Fires</th>
-              <th>High</th>
-              <th>FRP</th>
+              <th>${t('satelliteFires.region')}</th>
+              <th>${t('satelliteFires.fires')}</th>
+              <th>${t('satelliteFires.high')}</th>
+              <th>${t('satelliteFires.frp')}</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
           <tfoot>
             <tr class="fire-totals">
-              <td>Total</td>
+              <td>${t('satelliteFires.total')}</td>
               <td>${this.totalCount}</td>
               <td>${totalHigh}</td>
               <td>${totalFrp >= 1000 ? `${(totalFrp / 1000).toFixed(1)}k` : Math.round(totalFrp).toLocaleString()}</td>
@@ -103,9 +105,9 @@ function escapeHtml(s: string): string {
 
 function timeSince(date: Date): string {
   const secs = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (secs < 60) return 'just now';
+  if (secs < 60) return t('time.justNow');
   const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('time.minutesAgo', { n: mins });
   const hrs = Math.floor(mins / 60);
-  return `${hrs}h ago`;
+  return t('time.hoursAgo', { n: hrs });
 }

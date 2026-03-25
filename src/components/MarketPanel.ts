@@ -2,6 +2,8 @@ import { Panel } from './Panel';
 import type { MarketData, CryptoData } from '@/types';
 import { formatPrice, formatChange, getChangeClass, getHeatmapClass } from '@/utils';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
+import { fetchNewsFromApi } from '@/services/api-client';
 
 function miniSparkline(data: number[] | undefined, change: number | null, w = 50, h = 16): string {
   if (!data || data.length < 2) return '';
@@ -19,12 +21,26 @@ function miniSparkline(data: number[] | undefined, change: number | null, w = 50
 
 export class MarketPanel extends Panel {
   constructor() {
-    super({ id: 'markets', title: 'Markets' });
+    super({ id: 'markets', title: t('panels.markets'), titleKey: 'panels.markets' });
+  }
+
+  /**
+   * Load financial news from the backend API (optional enhancement)
+   * Can be called to display financial news alongside market data
+   */
+  public async loadFinancialNews(): Promise<Array<{ title: string; source?: string }>> {
+    try {
+      const news = await fetchNewsFromApi({ category: 'economic', limit: 5 });
+      return news.map(n => ({ title: n.title, source: n.source }));
+    } catch {
+      // Silently fail - financial news is optional
+      return [];
+    }
   }
 
   public renderMarkets(data: MarketData[]): void {
     if (data.length === 0) {
-      this.showError('Failed to load market data');
+      this.showError(t('market.failedToLoad'));
       return;
     }
 
@@ -52,14 +68,14 @@ export class MarketPanel extends Panel {
 
 export class HeatmapPanel extends Panel {
   constructor() {
-    super({ id: 'heatmap', title: 'Sector Heatmap' });
+    super({ id: 'heatmap', title: t('panels.sectorHeatmap'), titleKey: 'panels.sectorHeatmap' });
   }
 
   public renderHeatmap(data: Array<{ name: string; change: number | null }>): void {
     const validData = data.filter((d) => d.change !== null);
 
     if (validData.length === 0) {
-      this.showError('Failed to load sector data');
+      this.showError(t('market.failedSector'));
       return;
     }
 
@@ -83,14 +99,14 @@ export class HeatmapPanel extends Panel {
 
 export class CommoditiesPanel extends Panel {
   constructor() {
-    super({ id: 'commodities', title: 'Commodities / VIX' });
+    super({ id: 'commodities', title: t('panels.commodities'), titleKey: 'panels.commodities' });
   }
 
   public renderCommodities(data: Array<{ display: string; price: number | null; change: number | null; sparkline?: number[] }>): void {
     const validData = data.filter((d) => d.price !== null);
 
     if (validData.length === 0) {
-      this.showError('Failed to load commodities');
+      this.showError(t('market.failedCommodities'));
       return;
     }
 
@@ -116,12 +132,12 @@ export class CommoditiesPanel extends Panel {
 
 export class CryptoPanel extends Panel {
   constructor() {
-    super({ id: 'crypto', title: 'Crypto' });
+    super({ id: 'crypto', title: t('panels.crypto'), titleKey: 'panels.crypto' });
   }
 
   public renderCrypto(data: CryptoData[]): void {
     if (data.length === 0) {
-      this.showError('Failed to load crypto data');
+      this.showError(t('market.failedCrypto'));
       return;
     }
 

@@ -2,6 +2,7 @@ import type { CorrelationSignal } from '@/services/correlation';
 import type { UnifiedAlert } from '@/services/cross-module-integration';
 import { escapeHtml } from '@/utils/sanitize';
 import { getSignalContext, type SignalType } from '@/utils/analysis-constants';
+import { t } from '@/i18n';
 
 export class SignalModal {
   private element: HTMLElement;
@@ -16,16 +17,16 @@ export class SignalModal {
     this.element.innerHTML = `
       <div class="signal-modal">
         <div class="signal-modal-header">
-          <span class="signal-modal-title">🎯 INTELLIGENCE FINDING</span>
+          <span class="signal-modal-title">🎯 ${t('signalModal.intelligenceFinding')}</span>
           <button class="signal-modal-close">×</button>
         </div>
         <div class="signal-modal-content"></div>
         <div class="signal-modal-footer">
           <label class="signal-audio-toggle">
             <input type="checkbox" checked>
-            <span>Sound alerts</span>
+            <span>${t('signalModal.soundAlerts')}</span>
           </label>
-          <button class="signal-dismiss-btn">Dismiss</button>
+          <button class="signal-dismiss-btn">${t('signalModal.dismiss')}</button>
         </div>
       </div>
     `;
@@ -121,19 +122,19 @@ export class SignalModal {
       const changeSign = cii.change > 0 ? '+' : '';
       detailsHtml += `
         <div class="signal-context-item">
-          <span class="context-label">Country:</span>
+          <span class="context-label">${t('signalModal.country')}:</span>
           <span class="context-value">${escapeHtml(cii.countryName)}</span>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Score Change:</span>
+          <span class="context-label">${t('signalModal.scoreChange')}:</span>
           <span class="context-value">${cii.previousScore} → ${cii.currentScore} (${changeSign}${cii.change})</span>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Instability Level:</span>
+          <span class="context-label">${t('signalModal.instabilityLevel')}:</span>
           <span class="context-value" style="text-transform: uppercase; color: ${color}">${cii.level}</span>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Primary Driver:</span>
+          <span class="context-label">${t('signalModal.primaryDriver')}:</span>
           <span class="context-value">${escapeHtml(cii.driver)}</span>
         </div>
       `;
@@ -144,15 +145,15 @@ export class SignalModal {
       const conv = alert.components.convergence;
       detailsHtml += `
         <div class="signal-context-item">
-          <span class="context-label">Location:</span>
+          <span class="context-label">${t('signalModal.location')}:</span>
           <button class="location-link" data-lat="${conv.lat}" data-lon="${conv.lon}">${conv.lat.toFixed(2)}°, ${conv.lon.toFixed(2)}° ↗</button>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Event Types:</span>
+          <span class="context-label">${t('signalModal.eventTypes')}:</span>
           <span class="context-value">${conv.types.join(', ')}</span>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Event Count:</span>
+          <span class="context-label">${t('signalModal.eventCount')}:</span>
           <span class="context-value">${conv.totalEvents} events in 24h</span>
         </div>
       `;
@@ -163,15 +164,15 @@ export class SignalModal {
       const cascade = alert.components.cascade;
       detailsHtml += `
         <div class="signal-context-item">
-          <span class="context-label">Source:</span>
+          <span class="context-label">${t('signalModal.source')}:</span>
           <span class="context-value">${escapeHtml(cascade.sourceName)} (${cascade.sourceType})</span>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Countries Affected:</span>
+          <span class="context-label">${t('signalModal.countriesAffected')}:</span>
           <span class="context-value">${cascade.countriesAffected}</span>
         </div>
         <div class="signal-context-item">
-          <span class="context-label">Impact Level:</span>
+          <span class="context-label">${t('signalModal.impactLevel')}:</span>
           <span class="context-value">${escapeHtml(cascade.highestImpact)}</span>
         </div>
       `;
@@ -243,7 +244,7 @@ export class SignalModal {
           <div class="signal-title">${escapeHtml(signal.title)}</div>
           <div class="signal-description">${escapeHtml(signal.description)}</div>
           <div class="signal-meta">
-            <span class="signal-confidence">Confidence: ${Math.round(signal.confidence * 100)}%</span>
+            <span class="signal-confidence">${t('signalModal.confidence')}: ${Math.round(signal.confidence * 100)}%</span>
             <span class="signal-time">${this.formatTime(signal.timestamp)}</span>
           </div>
           ${signal.data.explanation ? `
@@ -264,21 +265,21 @@ export class SignalModal {
           ${locationData.lat && locationData.lon ? `
             <div class="signal-location">
               <button class="location-link" data-lat="${locationData.lat}" data-lon="${locationData.lon}">
-                📍 View on map: ${locationData.regionName || `${locationData.lat.toFixed(2)}°, ${locationData.lon.toFixed(2)}°`}
+                📍 ${t('signalModal.viewOnMap')}: ${locationData.regionName || `${locationData.lat.toFixed(2)}°, ${locationData.lon.toFixed(2)}°`}
               </button>
             </div>
           ` : ''}
           <div class="signal-context">
             <div class="signal-context-item why-matters">
-              <span class="context-label">Why it matters:</span>
+              <span class="context-label">${t('signalModal.whyItMatters')}:</span>
               <span class="context-value">${escapeHtml(context.whyItMatters)}</span>
             </div>
             <div class="signal-context-item actionable">
-              <span class="context-label">Action:</span>
+              <span class="context-label">${t('signalModal.action')}:</span>
               <span class="context-value">${escapeHtml(context.actionableInsight)}</span>
             </div>
             <div class="signal-context-item confidence-note">
-              <span class="context-label">Note:</span>
+              <span class="context-label">${t('signalModal.note')}:</span>
               <span class="context-value">${escapeHtml(context.confidenceNote)}</span>
             </div>
           </div>

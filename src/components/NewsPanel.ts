@@ -1,12 +1,13 @@
 import { Panel } from './Panel';
 import { WindowedList } from './VirtualList';
+import { t } from '@/i18n';
 import type { NewsItem, ClusteredEvent, DeviationLevel, RelatedAsset, RelatedAssetContext } from '@/types';
 import { THREAT_PRIORITY, THREAT_COLORS } from '@/services/threat-classifier';
 import { formatTime } from '@/utils';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
-import { analysisWorker, enrichWithVelocityML, getClusterAssetContext, getAssetLabel, MAX_DISTANCE_KM, activityTracker, generateSummary } from '@/services';
+import { getClusterAssetContext, getAssetLabel, MAX_DISTANCE_KM, activityTracker, generateSummary } from '@/services';
 import { getSourcePropagandaRisk, getSourceTier, getSourceType } from '@/config/feeds';
-import { SITE_VARIANT } from '@/config';
+import { getVariant } from '@/config';
 
 /** Threshold for enabling virtual scrolling */
 const VIRTUAL_SCROLL_THRESHOLD = 15;
@@ -120,7 +121,7 @@ export class NewsPanel extends Panel {
     this.summaryBtn = document.createElement('button');
     this.summaryBtn.className = 'panel-summarize-btn';
     this.summaryBtn.innerHTML = '✨';
-    this.summaryBtn.title = 'Summarize this panel';
+    this.summaryBtn.title = t('panel.summarize');
     this.summaryBtn.addEventListener('click', () => this.handleSummarize());
 
     // Insert before count element (use inherited this.header directly)
@@ -137,7 +138,7 @@ export class NewsPanel extends Panel {
     if (this.currentHeadlines.length === 0) return;
 
     // Check cache first (include variant and version to bust old caches)
-    const cacheKey = `panel_summary_v2_${SITE_VARIANT}_${this.panelId}`;
+    const cacheKey = `panel_summary_v2_${getVariant()}_${this.panelId}`;
     const cached = this.getCachedSummary(cacheKey);
     if (cached) {
       this.showSummary(cached);
@@ -176,7 +177,7 @@ export class NewsPanel extends Panel {
     this.summaryContainer.innerHTML = `
       <div class="panel-summary-content">
         <span class="panel-summary-text">${escapeHtml(summary)}</span>
-        <button class="panel-summary-close" title="Close">×</button>
+        <button class="panel-summary-close" title="${t('news.close')}">×</button>
       </div>
     `;
     this.summaryContainer.querySelector('.panel-summary-close')?.addEventListener('click', () => this.hideSummary());
@@ -229,7 +230,7 @@ export class NewsPanel extends Panel {
 
   public renderNews(items: NewsItem[]): void {
     if (items.length === 0) {
-      this.showError('No news available');
+      this.showError(t('news.noData'));
       return;
     }
 
@@ -240,18 +241,54 @@ export class NewsPanel extends Panel {
     }
   }
 
-  private async renderClustersAsync(items: NewsItem[]): Promise<void> {
+  private async renderClustersAsync(_items: NewsItem[]): Promise<void> {
     const requestId = ++this.renderRequestId;
 
     try {
-      const clusters = await analysisWorker.clusterNews(items);
+      // Fetch clusters from backend API (already includes velocity and enrichment)
+      const response = await fetch('/api/clusters');
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data = await response.json();
       if (requestId !== this.renderRequestId) return;
-      const enriched = await enrichWithVelocityML(clusters);
-      this.renderClusters(enriched);
+
+      if (!data.clusters || data.clusters.length === 0) {
+        this.renderFlat(_items);
+        return;
+      }
+
+      // Transform API response to ClusteredEvent format
+      const clusters = data.clusters.map((cluster: any) => ({
+        id: cluster.id,
+        primaryTitle: cluster.primaryTitle,
+        primaryLink: cluster.primaryLink,
+        primarySource: cluster.primarySource,
+        sourceCount: cluster.sourceCount,
+        topSources: cluster.topSources,
+        allItems: cluster.allItems.map((item: any) => ({
+          source: item.source,
+          title: item.title,
+          link: item.link,
+          pubDate: new Date(item.pubDate),
+          isAlert: item.isAlert,
+          threat: item.threat,
+        })),
+        firstSeen: new Date(cluster.firstSeen),
+        lastUpdated: new Date(cluster.lastUpdated),
+        isAlert: cluster.isAlert,
+        monitorColor: cluster.monitorColor,
+        velocity: cluster.velocity,
+        threat: cluster.threat,
+        lat: cluster.lat,
+        lon: cluster.lon,
+      }));
+
+      this.renderClusters(clusters);
     } catch (error) {
       if (requestId !== this.renderRequestId) return;
       console.error('[NewsPanel] Failed to cluster news:', error);
-      this.showError('Failed to cluster news');
+      this.showError(t('news.failedToCluster'));
     }
   }
 
@@ -344,12 +381,12 @@ export class NewsPanel extends Panel {
     showNewTag: boolean
   ): string {
     const sourceBadge = cluster.sourceCount > 1
-      ? `<span class="source-count">${cluster.sourceCount} sources</span>`
+      ? `<span class="source-count">${t('news.sourceCount', { n: cluster.sourceCount })}</span>`
       : '';
 
     const velocity = cluster.velocity;
     const velocityBadge = velocity && velocity.level !== 'normal' && cluster.sourceCount > 1
-      ? `<span class="velocity-badge ${velocity.level}">${velocity.trend === 'rising' ? '↑' : ''}+${velocity.sourcesPerHour}/hr</span>`
+      ? `<span class="velocity-badge ${velocity.level}">${velocity.trend === 'rising' ? '↑' : ''}${t('news.sourcesPerHour', { n: velocity.sourcesPerHour })}</span>`
       : '';
 
     const sentimentIcon = velocity?.sentiment === 'negative' ? '⚠' : velocity?.sentiment === 'positive' ? '✓' : '';
@@ -357,26 +394,26 @@ export class NewsPanel extends Panel {
       ? `<span class="sentiment-badge ${velocity?.sentiment}">${sentimentIcon}</span>`
       : '';
 
-    const newTag = showNewTag ? '<span class="new-tag">NEW</span>' : '';
+    const newTag = showNewTag ? `<span class="new-tag">${t('panel.newBadge')}</span>` : '';
 
     // Propaganda risk indicator for primary source
     const primaryPropRisk = getSourcePropagandaRisk(cluster.primarySource);
     const primaryPropBadge = primaryPropRisk.risk !== 'low'
-      ? `<span class="propaganda-badge ${primaryPropRisk.risk}" title="${escapeHtml(primaryPropRisk.note || `State-affiliated: ${primaryPropRisk.stateAffiliated || 'Unknown'}`)}">${primaryPropRisk.risk === 'high' ? '⚠ State Media' : '! Caution'}</span>`
+      ? `<span class="propaganda-badge ${primaryPropRisk.risk}" title="${escapeHtml(primaryPropRisk.note || `${t('news.stateAffiliated')}: ${primaryPropRisk.stateAffiliated || 'Unknown'}`)}">${primaryPropRisk.risk === 'high' ? '⚠ ' + t('news.stateMedia') : '! ' + t('news.caution')}</span>`
       : '';
 
     // Source credibility badge for primary source (T1=Wire, T2=Verified outlet)
     const primaryTier = getSourceTier(cluster.primarySource);
     const primaryType = getSourceType(cluster.primarySource);
-    const tierLabel = primaryTier === 1 ? 'Wire' : ''; // Don't show "Major" - confusing with story importance
+    const tierLabel = primaryTier === 1 ? t('news.wire') : ''; // Don't show "Major" - confusing with story importance
     const tierBadge = primaryTier <= 2
-      ? `<span class="tier-badge tier-${primaryTier}" title="${primaryType === 'wire' ? 'Wire Service - Highest reliability' : primaryType === 'gov' ? 'Official Government Source' : 'Verified News Outlet'}">${primaryTier === 1 ? '★' : '●'}${tierLabel ? ` ${tierLabel}` : ''}</span>`
+      ? `<span class="tier-badge tier-${primaryTier}" title="${primaryType === 'wire' ? t('news.wireServiceReliability') : primaryType === 'gov' ? t('news.officialGovernment') : t('news.verifiedOutlet')}">${primaryTier === 1 ? '★' : '●'}${tierLabel ? ` ${tierLabel}` : ''}</span>`
       : '';
 
     // Build "Also reported by" section for multi-source confirmation
     const otherSources = cluster.topSources.filter(s => s.name !== cluster.primarySource);
     const topSourcesHtml = otherSources.length > 0
-      ? `<span class="also-reported">Also:</span>` + otherSources
+      ? `<span class="also-reported">${t('news.also')}:</span>` + otherSources
           .map(s => {
             const propRisk = getSourcePropagandaRisk(s.name);
             const propBadge = propRisk.risk !== 'low'
@@ -396,7 +433,7 @@ export class NewsPanel extends Panel {
       ? `
         <div class="related-assets" data-cluster-id="${escapeHtml(cluster.id)}">
           <div class="related-assets-header">
-            Related assets near ${escapeHtml(assetContext.origin.label)}
+            ${t('news.relatedAssetsNear')} ${escapeHtml(assetContext.origin.label)}
             <span class="related-assets-range">(${MAX_DISTANCE_KM}km)</span>
           </div>
           <div class="related-assets-list">

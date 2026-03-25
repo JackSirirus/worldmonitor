@@ -1,6 +1,7 @@
 import { Panel } from './Panel';
 import { getTechReadinessRankings, type TechReadinessScore } from '@/services/worldbank';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 const COUNTRY_FLAGS: Record<string, string> = {
   'USA': '🇺🇸', 'CHN': '🇨🇳', 'JPN': '🇯🇵', 'DEU': '🇩🇪', 'KOR': '🇰🇷',
@@ -26,7 +27,8 @@ export class TechReadinessPanel extends Panel {
   constructor() {
     super({
       id: 'tech-readiness',
-      title: 'Tech Readiness Index',
+      title: t('panels.techReadinessIndex'),
+      titleKey: 'panels.techReadinessIndex',
       showCount: true,
       infoTooltip: `
         <strong>Global Tech Readiness</strong><br>
@@ -58,7 +60,7 @@ export class TechReadinessPanel extends Panel {
       this.render();
     } catch (error) {
       console.error('[TechReadinessPanel] Error fetching data:', error);
-      this.showError('Failed to load tech readiness data');
+      this.showError(t('techReadiness.failedToLoad'));
     } finally {
       this.loading = false;
     }
@@ -71,7 +73,7 @@ export class TechReadinessPanel extends Panel {
           <div class="tech-globe-ring"></div>
           <span class="tech-globe">🌐</span>
         </div>
-        <div class="tech-fetch-title">Fetching World Bank Data</div>
+        <div class="tech-fetch-title">${t('techReadiness.fetchingData')}</div>
         <div class="tech-fetch-indicators">
           <div class="tech-indicator-item" style="animation-delay: 0s">
             <span class="tech-indicator-icon">🌐</span>
@@ -94,7 +96,7 @@ export class TechReadinessPanel extends Panel {
             <span class="tech-indicator-status"></span>
           </div>
         </div>
-        <div class="tech-fetch-note">Analyzing 200+ countries...</div>
+        <div class="tech-fetch-note">${t('techReadiness.analyzing')}</div>
       </div>
     `);
   }
@@ -116,7 +118,7 @@ export class TechReadinessPanel extends Panel {
 
   private render(): void {
     if (this.rankings.length === 0) {
-      this.showError('No data available');
+      this.showError(t('techReadiness.noData'));
       return;
     }
 
@@ -134,9 +136,9 @@ export class TechReadinessPanel extends Panel {
               <div class="readiness-info">
                 <div class="readiness-name">${escapeHtml(country.countryName)}</div>
                 <div class="readiness-components">
-                  <span title="Internet Users">🌐${this.formatComponent(country.components.internet)}</span>
-                  <span title="Mobile Subscriptions">📱${this.formatComponent(country.components.mobile)}</span>
-                  <span title="R&D Spending">🔬${this.formatComponent(country.components.rdSpend)}</span>
+                  <span title="${t('techReadiness.internetUsers')}">🌐${this.formatComponent(country.components.internet)}</span>
+                  <span title="${t('techReadiness.mobileSubscriptions')}">📱${this.formatComponent(country.components.mobile)}</span>
+                  <span title="${t('techReadiness.rdSpending')}">🔬${this.formatComponent(country.components.rdSpend)}</span>
                 </div>
               </div>
               <div class="readiness-score ${scoreClass}">${country.score}</div>

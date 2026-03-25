@@ -2,6 +2,7 @@ import { getRecentSignals, type CorrelationSignal } from '@/services/correlation
 import { getRecentAlerts, type UnifiedAlert } from '@/services/cross-module-integration';
 import { getSignalContext } from '@/utils/analysis-constants';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 const LOW_COUNT_THRESHOLD = 3;
 const MAX_VISIBLE_FINDINGS = 10;
@@ -39,7 +40,7 @@ export class IntelligenceFindingsBadge {
   constructor() {
     this.badge = document.createElement('button');
     this.badge.className = 'intel-findings-badge';
-    this.badge.title = 'Intelligence findings';
+    this.badge.title = t('intel.intelligenceFindings');
     this.badge.innerHTML = '<span class="findings-icon">🎯</span><span class="findings-count">0</span>';
 
     this.dropdown = document.createElement('div');

@@ -1,4 +1,5 @@
 import { Panel } from './Panel';
+import { t } from '@/i18n';
 import { mlWorker } from '@/services/ml-worker';
 import { generateSummary } from '@/services/summarization';
 import { parallelAnalysis, type AnalyzedHeadline } from '@/services/parallel-analysis';
@@ -8,7 +9,8 @@ import { ingestNewsForCII } from '@/services/country-instability';
 import { getTheaterPostureSummaries } from '@/services/military-surge';
 import { isMobileDevice } from '@/utils';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
-import { SITE_VARIANT } from '@/config';
+import { getVariant } from '@/config';
+import { createReport, fetchReports } from '@/services/api-client';
 import type { ClusteredEvent, FocalPoint, MilitaryFlight } from '@/types';
 
 export class InsightsPanel extends Panel {
@@ -21,10 +23,34 @@ export class InsightsPanel extends Panel {
   private lastMilitaryFlights: MilitaryFlight[] = [];
   private static readonly BRIEF_COOLDOWN_MS = 120000; // 2 min cooldown (API has limits)
 
+  /**
+   * Store insights report to backend API (optional)
+   */
+  public async saveInsightsReport(title: string, content: string): Promise<void> {
+    try {
+      await createReport({ title, content, type: 'insights' });
+    } catch {
+      // Silently fail - storing reports is optional
+    }
+  }
+
+  /**
+   * Load cached insights from backend API (optional)
+   */
+  public async loadCachedInsights(): Promise<string | null> {
+    try {
+      const reports = await fetchReports({ type: 'insights', limit: 1 });
+      return reports[0]?.content || null;
+    } catch {
+      return null;
+    }
+  }
+
   constructor() {
     super({
       id: 'insights',
-      title: 'AI INSIGHTS',
+      title: t('panels.aiInsights'),
+      titleKey: 'panels.aiInsights',
       showCount: false,
       infoTooltip: `
         <strong>AI-Powered Analysis</strong><br>
@@ -249,7 +275,7 @@ export class InsightsPanel extends Panel {
 
     try {
       // Step 1: Filter and rank stories by composite importance score
-      this.setProgress(1, totalSteps, 'Ranking important stories...');
+      this.setProgress(1, totalSteps, t('insights.ranking'));
 
       const importantClusters = this.selectTopStories(clusters, 8);
 
@@ -271,7 +297,7 @@ export class InsightsPanel extends Panel {
       let signalSummary: ReturnType<typeof signalAggregator.getSummary>;
       let focalSummary: ReturnType<typeof focalPointDetector.analyze>;
 
-      if (SITE_VARIANT === 'full') {
+      if (getVariant() === 'full') {
         signalSummary = signalAggregator.getSummary();
         this.lastConvergenceZones = signalSummary.convergenceZones;
         if (signalSummary.totalSignals > 0) {
@@ -317,7 +343,7 @@ export class InsightsPanel extends Panel {
       const titles = importantClusters.map(c => c.primaryTitle);
 
       // Step 2: Analyze sentiment (browser-based, fast)
-      this.setProgress(2, totalSteps, 'Analyzing sentiment...');
+      this.setProgress(2, totalSteps, t('insights.analyzingSentiment'));
       let sentiments: Array<{ label: string; score: number }> | null = null;
 
       if (mlWorker.isAvailable) {
@@ -329,17 +355,17 @@ export class InsightsPanel extends Panel {
       const now = Date.now();
 
       if (!worldBrief || now - this.lastBriefUpdate > InsightsPanel.BRIEF_COOLDOWN_MS) {
-        this.setProgress(3, totalSteps, 'Generating world brief...');
+        this.setProgress(3, totalSteps, t('insights.generatingBrief'));
 
         // Pass focal point context + theater posture to AI for correlation-aware summarization
         // Tech variant: no geopolitical context, just tech news summarization
-        const theaterContext = SITE_VARIANT === 'full' ? this.getTheaterPostureContext() : '';
-        const geoContext = SITE_VARIANT === 'full'
+        const theaterContext = getVariant() === 'full' ? this.getTheaterPostureContext() : '';
+        const geoContext = getVariant() === 'full'
           ? (focalSummary.aiContext || signalSummary.aiContext) + theaterContext
           : '';
         const result = await generateSummary(titles, (_step, _total, msg) => {
           // Show sub-progress for summarization
-          this.setProgress(3, totalSteps, `Generating brief: ${msg}`);
+          this.setProgress(3, totalSteps, t('insights.generatingBriefMsg') + msg);
         }, geoContext);
 
         if (result) {
@@ -349,11 +375,11 @@ export class InsightsPanel extends Panel {
           console.log(`[InsightsPanel] Brief generated${result.cached ? ' (cached)' : ''}${geoContext ? ' (with geo context)' : ''}`);
         }
       } else {
-        this.setProgress(3, totalSteps, 'Using cached brief...');
+        this.setProgress(3, totalSteps, t('insights.usingCachedBrief'));
       }
 
       // Step 4: Wait for parallel analysis to complete
-      this.setProgress(4, totalSteps, 'Multi-perspective analysis...');
+      this.setProgress(4, totalSteps, t('insights.multiPerspective'));
       await parallelPromise;
 
       this.renderInsights(importantClusters, sentiments, worldBrief);
@@ -393,7 +419,7 @@ export class InsightsPanel extends Panel {
   private renderWorldBrief(brief: string): string {
     return `
       <div class="insights-brief">
-        <div class="insights-section-title">${SITE_VARIANT === 'tech' ? '🚀 TECH BRIEF' : '🌍 WORLD BRIEF'}</div>
+        <div class="insights-section-title">${getVariant() === 'tech' ? t('insights.techBrief') : t('insights.worldBrief')}</div>
         <div class="insights-brief-text">${escapeHtml(brief)}</div>
       </div>
     `;
@@ -451,13 +477,13 @@ export class InsightsPanel extends Panel {
     const neuPct = Math.round((neutral / total) * 100);
     const posPct = 100 - negPct - neuPct;
 
-    let toneLabel = 'Mixed';
+    let toneLabel = t('insights.toneMixed');
     let toneClass = 'neutral';
     if (negative > positive + neutral) {
-      toneLabel = 'Negative';
+      toneLabel = t('insights.toneNegative');
       toneClass = 'negative';
     } else if (positive > negative + neutral) {
-      toneLabel = 'Positive';
+      toneLabel = t('insights.tonePositive');
       toneClass = 'positive';
     }
 

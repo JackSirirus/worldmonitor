@@ -1,4 +1,7 @@
 import { Panel } from './Panel';
+import { t } from '@/i18n';
+import { escapeHtml } from '@/utils/sanitize';
+import { getVariant } from '@/config';
 
 // YouTube IFrame Player API types
 type YouTubePlayer = {
@@ -43,8 +46,6 @@ interface LiveChannel {
   useFallbackOnly?: boolean; // Skip auto-detection, always use fallback
 }
 
-const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
-
 // Full variant: World news channels (24/7 live streams)
 const FULL_LIVE_CHANNELS: LiveChannel[] = [
   { id: 'bloomberg', name: 'Bloomberg', handle: '@Bloomberg', fallbackVideoId: 'iEpJwprxDdk' },
@@ -65,7 +66,7 @@ const TECH_LIVE_CHANNELS: LiveChannel[] = [
   { id: 'nasa', name: 'NASA TV', handle: '@NASA', fallbackVideoId: 'fO9e9jnhYK8', useFallbackOnly: true },
 ];
 
-const LIVE_CHANNELS = SITE_VARIANT === 'tech' ? TECH_LIVE_CHANNELS : FULL_LIVE_CHANNELS;
+const LIVE_CHANNELS = getVariant() === 'tech' ? TECH_LIVE_CHANNELS : FULL_LIVE_CHANNELS;
 
 // Cache for live video IDs
 const liveVideoCache = new Map<string, { videoId: string | null; timestamp: number }>();
@@ -83,7 +84,7 @@ async function fetchLiveVideoId(channel: LiveChannel): Promise<string | null> {
   }
 
   try {
-    const res = await fetch(`/api/youtube/live?channel=${encodeURIComponent(channel.handle)}`);
+    const res = await fetch(`/api/youtube-live?channel=${encodeURIComponent(channel.handle)}`);
     if (!res.ok) throw new Error('API error');
     const data = await res.json();
     const videoId = data.videoId || null;
@@ -118,7 +119,7 @@ export class LiveNewsPanel extends Panel {
   private currentVideoId: string | null = null;
 
   constructor() {
-    super({ id: 'live-news', title: 'Live News', showCount: false, trackActivity: false });
+    super({ id: 'live-news', title: t('panels.liveNews'), titleKey: 'panels.liveNews', showCount: false, trackActivity: false });
     this.playerElementId = `live-news-player-${Date.now()}`;
     this.element.classList.add('panel-wide');
     this.createLiveButton();
@@ -194,7 +195,7 @@ export class LiveNewsPanel extends Panel {
   private createLiveButton(): void {
     this.liveBtn = document.createElement('button');
     this.liveBtn.className = 'live-indicator-btn';
-    this.liveBtn.title = 'Toggle playback';
+    this.liveBtn.title = t('liveNews.togglePlayback');
     this.updateLiveIndicator();
     this.liveBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -223,7 +224,7 @@ export class LiveNewsPanel extends Panel {
   private createMuteButton(): void {
     this.muteBtn = document.createElement('button');
     this.muteBtn.className = 'live-mute-btn';
-    this.muteBtn.title = 'Toggle sound';
+    this.muteBtn.title = t('liveNews.toggleSound');
     this.updateMuteIcon();
     this.muteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -303,8 +304,8 @@ export class LiveNewsPanel extends Panel {
     this.content.innerHTML = `
       <div class="live-offline">
         <div class="offline-icon">📺</div>
-        <div class="offline-text">${channel.name} is not currently live</div>
-        <button class="offline-retry" onclick="this.closest('.panel').querySelector('.live-channel-btn.active')?.click()">Retry</button>
+        <div class="offline-text">${escapeHtml(channel.name)} ${t('liveNews.isNotLive')}</div>
+        <button class="offline-retry" onclick="this.closest('.panel').querySelector('.live-channel-btn.active')?.click()">${t('liveNews.retry')}</button>
       </div>
     `;
   }

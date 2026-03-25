@@ -1,6 +1,7 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
 import { calculateCII, type CountryScore } from '@/services/country-instability';
+import { t } from '@/i18n';
 
 export class CIIPanel extends Panel {
   private scores: CountryScore[] = [];
@@ -10,7 +11,8 @@ export class CIIPanel extends Panel {
   constructor() {
     super({
       id: 'cii',
-      title: 'Country Instability Index',
+      title: t('panels.countryInstability'),
+      titleKey: 'panels.countryInstability',
       showCount: true,
       trackActivity: true,
       infoTooltip: `<strong>CII Methodology</strong>
@@ -25,7 +27,7 @@ export class CIIPanel extends Panel {
         <em>U:S:I values show component scores.</em>
         Focal Point Detection correlates news entities with map signals for accurate scoring.`,
     });
-    this.showLoading('Scanning intelligence feeds');
+    this.showLoading(t('cii.scanning'));
   }
 
   public setShareStoryHandler(handler: (code: string, name: string) => void): void {
@@ -71,16 +73,16 @@ export class CIIPanel extends Panel {
           <span class="cii-name">${escapeHtml(country.name)}</span>
           <span class="cii-score">${country.score}</span>
           ${trend}
-          <button class="cii-share-btn" data-code="${escapeHtml(country.code)}" data-name="${escapeHtml(country.name)}" title="Share story"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
+          <button class="cii-share-btn" data-code="${escapeHtml(country.code)}" data-name="${escapeHtml(country.name)}" title="${t('cii.share')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
         </div>
         <div class="cii-bar-container">
           <div class="cii-bar" style="width: ${barWidth}%; background: ${color};"></div>
         </div>
         <div class="cii-components">
-          <span title="Unrest">U:${country.components.unrest}</span>
-          <span title="Conflict">C:${country.components.conflict}</span>
-          <span title="Security">S:${country.components.security}</span>
-          <span title="Information">I:${country.components.information}</span>
+          <span title="${t('cii.componentsUnrest')}">U:${country.components.unrest}</span>
+          <span title="${t('cii.componentsConflict')}">C:${country.components.conflict}</span>
+          <span title="${t('cii.componentsSecurity')}">S:${country.components.security}</span>
+          <span title="${t('cii.componentsInformation')}">I:${country.components.information}</span>
         </div>
       </div>
     `;
@@ -130,7 +132,7 @@ export class CIIPanel extends Panel {
       this.bindShareButtons();
     } catch (error) {
       console.error('[CIIPanel] Refresh error:', error);
-      this.showError('Failed to calculate CII');
+      this.showError(t('cii.failedToCalculate'));
     }
   }
 

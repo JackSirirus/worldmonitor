@@ -1,0 +1,162 @@
+# ============================================
+# WorldMonitor Docker Compose
+# Local development with hot reload support
+# ============================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: worldmonitor-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-worldmonitor}
+      - POSTGRES_USER=${POSTGRES_USER:-worldmonitor}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-worldmonitor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - worldmonitor
+
+  worldmonitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: worldmonitor
+    ports:
+      - "3001:3001"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      # Server configuration
+      - NODE_ENV=production
+      - PORT=3001
+
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-worldmonitor}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-worldmonitor}}
+
+      # AI Summarization (optional)
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
+      - MINIMAX_API_BASE=${MINIMAX_API_BASE:-https://api.minimaxi.com/anthropic}
+      - LEPTON_API_KEY=${LEPTON_API_KEY:-}
+
+      # Redis cache (optional)
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL:-}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:-}
+
+      # Local Redis (for Bull queue)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Market data (optional)
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+
+      # Energy data (optional)
+      - EIA_API_KEY=${EIA_API_KEY:-}
+
+      # Economic data (optional)
+      - FRED_API_KEY=${FRED_API_KEY:-}
+
+      # Aircraft tracking (optional)
+      - WINGBITS_API_KEY=${WINGBITS_API_KEY:-}
+
+      # Conflict data (optional)
+      - ACLED_ACCESS_TOKEN=${ACLED_ACCESS_TOKEN:-}
+
+      # Internet outages (optional)
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+
+      # Satellite fire data (optional)
+      - NASA_FIRMS_API_KEY=${NASA_FIRMS_API_KEY:-}
+
+      # WebSocket relay (optional)
+      - WS_RELAY_URL=${WS_RELAY_URL:-}
+      - VITE_WS_RELAY_URL=${VITE_WS_RELAY_URL:-}
+
+      # Cloud backup (optional)
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+      - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+
+      # Site variant
+      - VITE_VARIANT=full
+
+      # Data retention
+      - RSS_RETENTION_DAYS=${RSS_RETENTION_DAYS:-90}
+      - PODCAST_RETENTION_DAYS=${PODCAST_RETENTION_DAYS:-3}
+
+      # File storage paths
+      - BACKUP_DIR=/backups
+      - PODCAST_DIR=/podcasts
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - worldmonitor
+    volumes:
+      - ./backups:/backups
+      - ./podcasts:/podcasts
+      - static-files:/app/dist-mounted
+
+  redis:
+    image: redis:7-alpine
+    container_name: worldmonitor-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - worldmonitor
+
+  nginx:
+    image: nginx:alpine
+    container_name: worldmonitor-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static-files:/usr/share/nginx/html:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - worldmonitor
+    restart: unless-stopped
+    networks:
+      - worldmonitor
+
+volumes:
+  postgres-data:
+  redis-data:
+  nginx-logs:
+  static-files:
+
+networks:
+  worldmonitor:
+    driver: bridge

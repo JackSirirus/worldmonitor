@@ -1,5 +1,6 @@
 import type { PizzIntStatus, GdeltTensionPair } from '@/types';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 const DEFCON_COLORS: Record<number, string> = {
   1: '#ff0040',
@@ -19,7 +20,7 @@ export class PizzIntIndicator {
     this.element = document.createElement('div');
     this.element.className = 'pizzint-indicator';
     this.element.innerHTML = `
-      <button class="pizzint-toggle" title="Pentagon Pizza Index">
+      <button class="pizzint-toggle" title="${t('pizzInt.title')}">
         <span class="pizzint-icon">🍕</span>
         <span class="pizzint-defcon">--</span>
         <span class="pizzint-score">--%</span>

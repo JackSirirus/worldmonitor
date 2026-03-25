@@ -4,8 +4,13 @@ dist/
 *.log
 .env
 .env.local
+.env.docker
 .playwright-mcp/
 .vercel
 .claude/
 .cursor/
 .env.vercel-backup
+
+# Docker
+*.dockerignore
+docker-compose.override.yml

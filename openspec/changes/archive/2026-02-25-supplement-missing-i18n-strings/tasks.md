@@ -1,0 +1,193 @@
+# Supplement Missing i18n Strings - Tasks
+
+## 1. Add Translation Keys to en.ts
+
+- [x] 1.1 Add `map.layers.*` namespace for layer toggle labels
+  - [x] 1.1.1 Tech variant: startupHubs, techHQs, accelerators, cloudRegions, techEvents
+  - [x] 1.1.2 Full variant: cables, outages, conflicts, bases, nuclear, irradiators, spaceports, pipelines, military, ais, flights, protests, weather, waterways, economic, minerals, hotspots
+- [x] 1.2 Add `map.legend.*` namespace for legend items
+- [x] 1.3 Add `map.tooltip.*` namespace for tooltip static text
+  - [x] 1.3.1 militaryAircraft, vesselCluster, flightCluster, naturalEvent, weatherAlert, internetOutage, gammaIrradiator, spaceport, port, aisDisruption, cable, repairShip
+- [x] 1.4 Add `map.activity.*` namespace for activity status labels
+  - [x] 1.4.1 breaking, high, elevated, recent, monitoring
+- [x] 1.5 Add `map.lastUpdate` for timestamp prefix
+- [x] 1.6 Add `map.layerDescriptions` for layer help button title
+- [x] 1.7 Add `map.zoomIn` for zoom in button
+- [x] 1.8 Add `map.zoomOut` for zoom out button
+- [x] 1.9 Add `map.resetView` for reset view button
+- [x] 1.10 Add `map.layerGuide` for layer guide button
+- [x] 1.11 Add `map.timeRangeAll` for time range "All" button
+- [x] 1.12 Add `map.aisSignalLost` for AIS signal lost indicator
+- [x] 1.13 Add `search.placeholderTech` for tech variant search
+- [x] 1.14 Add `search.placeholderFull` for full variant search
+- [x] 1.15 Add `search.hint` for search hint text
+- [x] 1.16 Add `common.copied` for copy success feedback
+- [x] 1.17 Add `common.copyFailed` for copy failure feedback
+- [x] 1.18 Add `common.loadingSoon` for loading delay message
+- [x] 1.19 Add `common.allSourcesDisabled` for disabled sources message
+- [x] 1.20 Add `common.allIntelDisabled` for disabled intel sources message
+- [x] 1.21 Add `common.failedToGenerate` for brief generation failure
+- [x] 1.22 Add `regulation.tabs.*` namespace
+  - [x] 1.22.1 timeline, deadlines, regulations, countries
+- [x] 1.23 Add `verification.*` namespace for checklist labels
+  - [x] 1.23.1 recency, geolocation, source, no_recrop, metadata, context
+  - [x] 1.23.2 basedOn, noNotes, addNote
+- [x] 1.24 Add `intel.*` namespace
+  - [x] 1.24.1 intelligenceFindings, noRecentFindings
+  - [x] 1.24.2 alertDescriptions.critical, significantShift, developing, convergence, cascade, review
+- [x] 1.25 Add `geoHubs.description` for GeoHubsPanel description
+- [x] 1.26 Add `techHubs.description` for TechHubsPanel description
+- [x] 1.27 Add `cascade.description` for CascadePanel description
+- [x] 1.28 Add `countryIntel.predictionMarkets` for modal label
+- [x] 1.29 Add `countryIntel.components.*` for country intel component labels
+  - [x] 1.29.1 unrest, conflict, security, information
+- [x] 1.30 Add `cii.components.*` for CII component labels
+  - [x] 1.30.1 share, unrest, conflict, security, information
+- [x] 1.31 Add `techEvents.showOnMap` for button tooltip
+- [x] 1.32 Add `techEvents.moreInfo` for more info link
+- [x] 1.33 Add `techEvents.tabs.*` for event tabs
+  - [x] 1.33.1 upcoming, conferences, earnings, all
+- [x] 1.34 Add `techEvents.eventTypes.*` for event type labels
+- [x] 1.35 Add `map.companyType.*` for company subtitle types (bigTech, unicorn, public)
+- [x] 1.36 Add `map.majorBackbone` for cable subtitle
+- [x] 1.37 Add `map.majorCable` for major cable label
+- [x] 1.38 Add `map.pipeline.*` for pipeline status descriptions
+- [x] 1.39 Add `map.repairShipNote` for repair ship descriptions
+- [x] 1.40 Add `macroSignals.hashpriceModel` for hashprice model label
+- [x] 1.41 Add `app.mapTitle.*` for map title (tech: Global Tech, full: Global Situation)
+- [x] 1.42 Add `strategicPosture.*` namespace for military panel
+  - [x] 1.42.1 clickToView, clickToViewMap, refresh
+  - [x] 1.42.2 aircraft.fighters, aircraft.tankers, aircraft.awacs, aircraft.recon, aircraft.transport, aircraft.bombers, aircraft.drones, aircraft.total
+  - [x] 1.42.3 naval.carriers, naval.destroyers, naval.frigates, naval.submarines, naval.patrol, naval.auxiliary, naval.total
+- [x] 1.43 Add `techReadiness.*` namespace for tech readiness panel
+  - [x] 1.43.1 internetUsers, mobileSubscriptions, rdSpending
+- [x] 1.44 Add `news.stateAffiliatedUnknown` for Unknown state-affiliated value
+- [x] 1.45 Add `pizzInt.title` for Pentagon Pizza Index tooltip
+- [x] 1.46 Add `monitor.keywordsPlaceholder` for monitor input placeholder
+- [x] 1.47 Add `insights.techBrief` for tech brief section title
+- [x] 1.48 Add `insights.worldBrief` for world brief section title
+- [x] 1.49 Add `status.never` for "Never" timestamp fallback
+- [x] 1.50 Add `status.notAvailable` for "N/A" quota display
+- [x] 1.51 Add `geoHubs.hubTypes.*` for hub type labels (capital, conflictZone, strategic, organization)
+- [x] 1.52 Add `common.aisUnavailable` for AIS snapshot unavailable
+- [x] 1.53 Add `common.acledNotConfigured` for ACLED configuration message
+- [x] 1.54 Add `common.unknownError` for unknown error fallback
+- [x] 1.55 Add `regulation.recentActions` for recent regulatory actions title
+- [x] 1.56 Add `regulation.upcomingDeadlines` for upcoming deadlines title
+- [x] 1.57 Add `regulation.activeRegulations` for active regulations title
+- [x] 1.58 Add `regulation.proposedRegulations` for proposed regulations title
+- [x] 1.59 Add `regulation.landscape` for regulatory landscape title
+- [x] 1.60 Add `news.close` for close button title
+- [x] 1.61 Add `economic.dataSources.*` for economic data source labels (FRED, EIA, USASpending)
+- [x] 1.62 Add `serviceStatus.tabs.*` for service status tab labels (all, cloud, dev, comm, ai, saas)
+- [x] 1.63 Add `macroSignals.notAvailable` for N/A display in macro signals
+
+## 2. Add Translation Keys to zh-cn.ts
+
+- [x] 2.1 Translate all keys from section 1 to Simplified Chinese
+  - [x] 2.1.1 Follow existing zh-cn.ts conventions
+  - [x] 2.1.2 Use appropriate Chinese terminology
+
+## 3. Add Translation Keys to zh-tw.ts
+
+- [x] 3.1 Translate all keys from section 1 to Traditional Chinese
+  - [x] 3.1.1 Follow existing zh-tw.ts conventions
+  - [x] 3.1.2 Use appropriate Traditional Chinese terminology
+
+## 4. Update Components to Use Translation Keys
+
+- [x] 4.1 Update App.ts
+  - [x] 4.1.1 Replace search placeholder with t() calls based on SITE_VARIANT
+  - [x] 4.1.2 Replace hint text with t('search.hint')
+  - [x] 4.1.3 Replace feedback messages with translation keys
+  - [x] 4.1.4 Replace map title with translation keys
+  - [x] 4.1.5 Replace "Failed to generate brief" message
+  - [x] 4.1.6 Replace country labels with translation keys
+- [x] 4.2 Update Map.ts
+  - [x] 4.2.1 Replace "LAST UPDATE" with t('map.lastUpdate')
+  - [x] 4.2.2 Replace activity status labels with translation keys
+  - [x] 4.2.3 Replace help button title
+  - [x] 4.2.4 Replace "AIS Signal Lost" indicator
+- [x] 4.3 Update DeckGLMap.ts
+  - [x] 4.3.1 Replace zoom in/out/reset button titles
+  - [x] 4.3.2 Replace layer guide button title
+  - [x] 4.3.3 Replace time range "All" button
+  - [x] 4.3.4 Replace all layer toggle labels with t() calls
+  - [x] 4.3.5 Replace legend labels with t() calls
+  - [x] 4.3.6 Replace tooltip static text with translation keys
+- [x] 4.4 Update RegulationPanel.ts
+  - [x] 4.4.1 Replace tab labels with t('regulation.tabs.*')
+- [x] 4.5 Update VerificationChecklist.ts
+  - [x] 4.5.1 Replace all label text with t('verification.*')
+- [x] 4.6 Update IntelligenceGapBadge.ts
+  - [x] 4.6.1 Replace badge title and descriptions with translation keys
+- [x] 4.7 Update GeoHubsPanel.ts
+  - [x] 4.7.1 Replace description with t('geoHubs.description')
+- [x] 4.8 Update TechHubsPanel.ts
+  - [x] 4.8.1 Replace description with t('techHubs.description')
+- [x] 4.9 Update CascadePanel.ts
+  - [x] 4.9.1 Replace description with t('cascade.description')
+- [x] 4.10 Update CountryIntelModal.ts
+  - [x] 4.10.1 Replace "Prediction Markets" label
+  - [x] 4.10.2 Replace component labels (Unrest, Conflict, Security, Information)
+  - [x] 4.10.3 Replace "Share story" button title
+- [x] 4.11 Update CIIPanel.ts
+  - [x] 4.11.1 Replace component labels
+  - [x] 4.11.2 Replace "Share story" button title
+- [x] 4.12 Update TechEventsPanel.ts
+  - [x] 4.12.1 Replace "Show on map" button tooltip
+  - [x] 4.12.2 Replace "More info" link title
+  - [x] 4.12.3 Replace tab labels
+- [x] 4.13 Update MacroSignalsPanel.ts
+  - [x] 4.13.1 Replace "Hashprice model" label
+- [x] 4.14 Update StrategicPosturePanel.ts
+  - [x] 4.14.1 Replace click-to-view titles
+  - [x] 4.14.2 Replace aircraft type labels (Fighters, Tankers, AWACS, etc.)
+  - [x] 4.14.3 Replace naval vessel type labels (Carriers, Destroyers, etc.)
+  - [x] 4.14.4 Replace refresh button title
+- [x] 4.15 Update TechReadinessPanel.ts
+  - [x] 4.15.1 Replace "Internet Users" label
+  - [x] 4.15.2 Replace "Mobile Subscriptions" label
+  - [x] 4.15.3 Replace "R&D Spending" label
+- [x] 4.16 Update NewsPanel.ts
+  - [x] 4.16.1 Replace "State-affiliated: Unknown" fallback text
+  - [x] 4.16.2 Replace "Close" button title
+- [x] 4.17 Update PizzIntIndicator.ts
+  - [x] 4.17.1 Replace tooltip title
+- [x] 4.18 Update MonitorPanel.ts
+  - [x] 4.18.1 Replace "Keywords (comma separated)" placeholder
+- [x] 4.19 Update InsightsPanel.ts
+  - [x] 4.19.1 Replace "TECH BRIEF" section title
+  - [x] 4.19.2 Replace "WORLD BRIEF" section title
+- [x] 4.20 Update StatusPanel.ts
+  - [x] 4.20.1 Replace "Never" timestamp fallback
+  - [x] 4.20.2 Replace "N/A" quota display
+- [x] 4.21 Update RegulationPanel.ts
+  - [x] 4.21.1 Replace "AI Regulation Dashboard" h3 title
+  - [x] 4.21.2 Replace "Recent Regulatory Actions" h4 title
+  - [x] 4.21.3 Replace "Upcoming Compliance Deadlines" h4 title
+  - [x] 4.21.4 Replace "Active Regulations" h4 title
+  - [x] 4.21.5 Replace "Proposed Regulations" h4 title
+  - [x] 4.21.6 Replace "Global Regulatory Landscape" h4 title
+- [x] 4.22 Update GeoHubsPanel.ts
+  - [x] 4.22.1 Replace "Capital" label
+  - [x] 4.22.2 Replace "Conflict Zone" label
+  - [x] 4.22.3 Replace "Strategic" label
+  - [x] 4.22.4 Replace "Organization" label
+  - [x] 4.22.5 Replace "No active geopolitical hubs" error
+- [x] 4.23 Update App.ts additional strings
+  - [x] 4.23.1 Replace "AIS snapshot unavailable" message
+  - [x] 4.23.2 Replace "ACLED not configured - using GDELT only" message
+  - [x] 4.23.3 Replace "Unknown error" message
+- [x] 4.24 Update ServiceStatusPanel.ts
+  - [x] 4.24.1 Replace tab labels (All, Cloud, Dev Tools, Comms, AI, SaaS)
+- [x] 4.25 Update MacroSignalsPanel.ts
+  - [x] 4.25.1 Replace "N/A" display values
+
+## 5. Testing
+
+- [x] 5.1 Verify English locale displays all translated strings correctly
+- [x] 5.2 Verify Simplified Chinese locale displays all translated strings correctly
+- [x] 5.3 Verify Traditional Chinese locale displays all translated strings correctly
+- [x] 5.4 Check for console warnings about missing translation keys
+- [x] 5.5 Verify language switching works for all new translated strings

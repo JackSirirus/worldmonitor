@@ -7,12 +7,13 @@ import {
   getRecentActions,
 } from '@/config';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 export class RegulationPanel extends Panel {
   private viewMode: 'timeline' | 'deadlines' | 'regulations' | 'countries' = 'timeline';
 
   constructor(id: string) {
-    super({ id, title: 'AI Regulation Dashboard' });
+    super({ id, title: t('panels.aiRegulationDashboard'), titleKey: 'panels.aiRegulationDashboard' });
     this.render();
   }
 
@@ -20,12 +21,12 @@ export class RegulationPanel extends Panel {
     this.content.innerHTML = `
       <div class="regulation-panel">
         <div class="regulation-header">
-          <h3>AI Regulation Dashboard</h3>
+          <h3>${t('panels.aiRegulationDashboard')}</h3>
           <div class="regulation-tabs">
-            <button class="tab ${this.viewMode === 'timeline' ? 'active' : ''}" data-view="timeline">Timeline</button>
-            <button class="tab ${this.viewMode === 'deadlines' ? 'active' : ''}" data-view="deadlines">Deadlines</button>
-            <button class="tab ${this.viewMode === 'regulations' ? 'active' : ''}" data-view="regulations">Regulations</button>
-            <button class="tab ${this.viewMode === 'countries' ? 'active' : ''}" data-view="countries">Countries</button>
+            <button class="tab ${this.viewMode === 'timeline' ? 'active' : ''}" data-view="timeline">${t('regulation.tabsTimeline')}</button>
+            <button class="tab ${this.viewMode === 'deadlines' ? 'active' : ''}" data-view="deadlines">${t('regulation.tabsDeadlines')}</button>
+            <button class="tab ${this.viewMode === 'regulations' ? 'active' : ''}" data-view="regulations">${t('regulation.tabsRegulations')}</button>
+            <button class="tab ${this.viewMode === 'countries' ? 'active' : ''}" data-view="countries">${t('regulation.tabsCountries')}</button>
           </div>
         </div>
         <div class="regulation-content">

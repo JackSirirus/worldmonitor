@@ -30,3 +30,7 @@ export * from './SatelliteFiresPanel';
 export * from './MacroSignalsPanel';
 export * from './ETFFlowsPanel';
 export * from './StablecoinPanel';
+export * from './AgentPanel';
+export * from './AgentConfigModal';
+export * from './ManualTriggerModal';
+export * from './AgentTaskList';

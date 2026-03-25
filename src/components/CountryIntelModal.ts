@@ -4,6 +4,7 @@
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
 import type { CountryScore } from '@/services/country-instability';
 import type { PredictionMarket } from '@/types';
+import { t } from '@/i18n';
 
 interface CountryIntelData {
   brief: string;
@@ -107,14 +108,14 @@ export class CountryIntelModal {
     this.currentCode = '__loading__';
     this.headerEl.innerHTML = `
       <span class="country-flag">🌍</span>
-      <span class="country-name">Identifying country...</span>
+      <span class="country-name">${t('countryIntel.loadingIndex')}</span>
     `;
     this.contentEl.innerHTML = `
       <div class="intel-brief-section">
         <div class="intel-brief-loading">
           <div class="intel-skeleton"></div>
           <div class="intel-skeleton short"></div>
-          <span class="intel-loading-text">Locating region...</span>
+          <span class="intel-loading-text">${t('countryIntel.loadingIndex')}</span>
         </div>
       </div>
     `;
@@ -133,7 +134,7 @@ export class CountryIntelModal {
       <span class="country-flag">${flag}</span>
       <span class="country-name">${escapeHtml(country)}</span>
       ${score ? this.levelBadge(score.level) : ''}
-      <button class="country-intel-share-btn" title="Share story"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
+      <button class="country-intel-share-btn" title="${t('cii.share')}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
     `;
     this.headerEl.querySelector('.country-intel-share-btn')?.addEventListener('click', () => {
       if (this.onShareStory && this.currentCode && this.currentName) {
@@ -149,10 +150,10 @@ export class CountryIntelModal {
         <div class="cii-section">
           <div class="cii-label">Instability Index ${this.scoreBar(score.score)}</div>
           <div class="cii-components">
-            <span title="Unrest">📢 ${score.components.unrest.toFixed(0)}</span>
-            <span title="Conflict">⚔ ${score.components.conflict.toFixed(0)}</span>
-            <span title="Security">🛡️ ${score.components.security.toFixed(0)}</span>
-            <span title="Information">📡 ${score.components.information.toFixed(0)}</span>
+            <span title="${t('countryIntel.componentsUnrest')}">📢 ${score.components.unrest.toFixed(0)}</span>
+            <span title="${t('countryIntel.componentsConflict')}">⚔ ${score.components.conflict.toFixed(0)}</span>
+            <span title="${t('countryIntel.componentsSecurity')}">🛡️ ${score.components.security.toFixed(0)}</span>
+            <span title="${t('countryIntel.componentsInformation')}">📡 ${score.components.information.toFixed(0)}</span>
             <span class="cii-trend ${score.trend}">${score.trend === 'rising' ? '↗' : score.trend === 'falling' ? '↘' : '→'} ${score.trend}</span>
           </div>
         </div>
@@ -167,10 +168,10 @@ export class CountryIntelModal {
       if (signals.outages > 0) chips.push(`<span class="signal-chip outage">🌐 ${signals.outages} outages</span>`);
       if (signals.earthquakes > 0) chips.push(`<span class="signal-chip quake">🌍 ${signals.earthquakes} earthquakes</span>`);
     }
-    chips.push(`<span class="signal-chip stock-loading">📈 Loading index...</span>`);
+    chips.push(`<span class="signal-chip stock-loading">📈 ${t('countryIntel.loadingIndex')}</span>`);
     html += `<div class="active-signals">${chips.join('')}</div>`;
 
-    html += `<div class="country-markets-section"><span class="intel-loading-text">Loading prediction markets...</span></div>`;
+    html += `<div class="country-markets-section"><span class="intel-loading-text">${t('countryIntel.loadingMarkets')}</span></div>`;
 
     html += `
       <div class="intel-brief-section">
@@ -179,7 +180,7 @@ export class CountryIntelModal {
           <div class="intel-skeleton short"></div>
           <div class="intel-skeleton"></div>
           <div class="intel-skeleton short"></div>
-          <span class="intel-loading-text">Generating intelligence brief...</span>
+          <span class="intel-loading-text">${t('countryIntel.loadingIndex')}</span>
         </div>
       </div>
     `;
@@ -195,7 +196,7 @@ export class CountryIntelModal {
     if (!briefSection) return;
 
     if (data.error) {
-      briefSection.innerHTML = `<div class="intel-error">Unable to generate brief. ${escapeHtml(data.error)}</div>`;
+      briefSection.innerHTML = `<div class="intel-error">${t('common.failed')} ${escapeHtml(data.error)}</div>`;
       return;
     }
 
@@ -216,7 +217,7 @@ export class CountryIntelModal {
     if (!section) return;
 
     if (markets.length === 0) {
-      section.innerHTML = '<span class="intel-loading-text" style="opacity:0.5">No prediction markets found</span>';
+      section.innerHTML = `<span class="intel-loading-text" style="opacity:0.5">${t('prediction.failedToLoad')}</span>`;
       return;
     }
 

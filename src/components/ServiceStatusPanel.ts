@@ -1,5 +1,6 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 interface ServiceStatus {
   id: string;
@@ -23,14 +24,17 @@ interface ServiceStatusResponse {
 
 type CategoryFilter = 'all' | 'cloud' | 'dev' | 'comm' | 'ai' | 'saas';
 
-const CATEGORY_LABELS: Record<CategoryFilter, string> = {
-  all: 'All',
-  cloud: 'Cloud',
-  dev: 'Dev Tools',
-  comm: 'Comms',
-  ai: 'AI',
-  saas: 'SaaS',
-};
+function getCategoryLabel(key: CategoryFilter): string {
+  const labels: Record<CategoryFilter, string> = {
+    all: t('serviceStatus.tabsAll'),
+    cloud: t('serviceStatus.tabsCloud'),
+    dev: t('serviceStatus.tabsDev'),
+    comm: t('serviceStatus.tabsComm'),
+    ai: t('serviceStatus.tabsAi'),
+    saas: t('serviceStatus.tabsSaas'),
+  };
+  return labels[key];
+}
 
 export class ServiceStatusPanel extends Panel {
   private services: ServiceStatus[] = [];
@@ -40,7 +44,7 @@ export class ServiceStatusPanel extends Panel {
   private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    super({ id: 'service-status', title: 'Service Status', showCount: false });
+    super({ id: 'service-status', title: t('panels.serviceStatus'), titleKey: 'panels.serviceStatus', showCount: false });
     void this.fetchStatus();
     this.refreshInterval = setInterval(() => this.fetchStatus(), 60000);
   }
@@ -86,7 +90,7 @@ export class ServiceStatusPanel extends Panel {
       this.content.innerHTML = `
         <div class="service-status-loading">
           <div class="loading-spinner"></div>
-          <span>Checking services...</span>
+          <span>${t('serviceStatus.checkingServices')}</span>
         </div>
       `;
       return;
@@ -96,7 +100,7 @@ export class ServiceStatusPanel extends Panel {
       this.content.innerHTML = `
         <div class="service-status-error">
           <span class="error-text">${escapeHtml(this.error)}</span>
-          <button class="retry-btn">Retry</button>
+          <button class="retry-btn">${t('serviceStatus.retry')}</button>
         </div>
       `;
       this.content.querySelector('.retry-btn')?.addEventListener('click', () => {
@@ -120,7 +124,7 @@ export class ServiceStatusPanel extends Panel {
       <div class="service-status-list">
         ${servicesHtml}
       </div>
-      ${issues.length === 0 ? '<div class="all-operational">All services operational</div>' : ''}
+      ${issues.length === 0 ? `<div class="all-operational">${t('serviceStatus.allOperational')}</div>` : ''}
     `;
 
     this.attachFilterListeners();
@@ -150,9 +154,9 @@ export class ServiceStatusPanel extends Panel {
   }
 
   private renderFilters(): string {
-    const filters = Object.entries(CATEGORY_LABELS).map(([key, label]) => {
+    const filters = (['all', 'cloud', 'dev', 'comm', 'ai', 'saas'] as CategoryFilter[]).map((key) => {
       const active = this.filter === key ? 'active' : '';
-      return `<button class="status-filter-btn ${active}" data-filter="${key}">${label}</button>`;
+      return `<button class="status-filter-btn ${active}" data-filter="${key}">${getCategoryLabel(key)}</button>`;
     }).join('');
 
     return `<div class="service-status-filters">${filters}</div>`;

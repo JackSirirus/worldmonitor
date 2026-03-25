@@ -484,8 +484,17 @@ function cleanupFlightHistory(): void {
 }
 
 // Set up periodic cleanup
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 if (typeof window !== 'undefined') {
-  setInterval(cleanupFlightHistory, HISTORY_CLEANUP_INTERVAL);
+  cleanupInterval = setInterval(cleanupFlightHistory, HISTORY_CLEANUP_INTERVAL);
+}
+
+// Export cleanup function for testing and manual cleanup
+export function stopFlightHistoryCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
 }
 
 /**

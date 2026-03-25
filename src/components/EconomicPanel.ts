@@ -6,6 +6,7 @@ import { getChangeClass, formatChange } from '@/services/fred';
 import { formatOilValue, getTrendIndicator, getTrendColor } from '@/services/oil-analytics';
 import { formatAwardAmount, getAwardTypeIcon } from '@/services/usa-spending';
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 type TabId = 'indicators' | 'oil' | 'spending';
 
@@ -17,7 +18,7 @@ export class EconomicPanel extends Panel {
   private activeTab: TabId = 'indicators';
 
   constructor() {
-    super({ id: 'economic', title: 'Economic Data' });
+    super({ id: 'economic', title: t('panels.economicIndicators'), titleKey: 'panels.economicIndicators' });
   }
 
   public update(data: FredSeries[]): void {
@@ -50,16 +51,16 @@ export class EconomicPanel extends Panel {
     const tabsHtml = `
       <div class="economic-tabs">
         <button class="economic-tab ${this.activeTab === 'indicators' ? 'active' : ''}" data-tab="indicators">
-          📊 Indicators
+          📊 ${t('economic.indicators')}
         </button>
         ${hasOil ? `
           <button class="economic-tab ${this.activeTab === 'oil' ? 'active' : ''}" data-tab="oil">
-            🛢️ Oil
+            🛢️ ${t('economic.oil')}
           </button>
         ` : ''}
         ${hasSpending ? `
           <button class="economic-tab ${this.activeTab === 'spending' ? 'active' : ''}" data-tab="spending">
-            🏛️ Gov
+            🏛️ ${t('economic.gov')}
           </button>
         ` : ''}
       </div>
@@ -115,7 +116,7 @@ export class EconomicPanel extends Panel {
 
   private renderIndicators(): string {
     if (this.fredData.length === 0) {
-      return '<div class="economic-empty">No economic data available</div>';
+      return `<div class="economic-empty">${t('economic.noData')}</div>`;
     }
 
     return `
@@ -147,7 +148,7 @@ export class EconomicPanel extends Panel {
 
   private renderOil(): string {
     if (!this.oilData) {
-      return '<div class="economic-empty">Oil data not available</div>';
+      return `<div class="economic-empty">${t('economic.oilDataNotAvailable')}</div>`;
     }
 
     const metrics = [
@@ -158,7 +159,7 @@ export class EconomicPanel extends Panel {
     ].filter(Boolean);
 
     if (metrics.length === 0) {
-      return '<div class="economic-empty">No oil metrics available. Add EIA_API_KEY to enable.</div>';
+      return `<div class="economic-empty">${t('economic.noOilMetrics')}</div>`;
     }
 
     return `
@@ -179,7 +180,7 @@ export class EconomicPanel extends Panel {
                   ${escapeHtml(trendIcon)} ${escapeHtml(String(metric.changePct > 0 ? '+' : ''))}${escapeHtml(String(metric.changePct))}%
                 </span>
               </div>
-              <div class="indicator-date">vs previous week</div>
+              <div class="indicator-date">${t('economic.vsPreviousWeek')}</div>
             </div>
           `;
         }).join('')}
@@ -189,7 +190,7 @@ export class EconomicPanel extends Panel {
 
   private renderSpending(): string {
     if (!this.spendingData || this.spendingData.awards.length === 0) {
-      return '<div class="economic-empty">No recent government awards</div>';
+      return `<div class="economic-empty">${t('economic.noGovernmentAwards')}</div>`;
     }
 
     const { awards, totalAmount, periodStart, periodEnd } = this.spendingData;

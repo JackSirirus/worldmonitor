@@ -1,5 +1,6 @@
 import { Panel } from './Panel';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 interface TechEventCoords {
   lat: number;
@@ -39,7 +40,7 @@ export class TechEventsPanel extends Panel {
   private error: string | null = null;
 
   constructor(id: string) {
-    super({ id, title: 'Tech Events', showCount: true });
+    super({ id, title: t('panels.techEvents'), titleKey: 'panels.techEvents', showCount: true });
     this.element.classList.add('panel-tall');
     void this.fetchEvents();
   }
@@ -54,10 +55,12 @@ export class TechEventsPanel extends Panel {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data: TechEventsResponse = await res.json();
-      if (!data.success) throw new Error(data.error || 'Unknown error');
+      // Support both { success, events } and { events } response formats
+      if (data.success === false) throw new Error(data.error || 'Unknown error');
 
-      this.events = data.events;
-      this.setCount(data.conferenceCount);
+      this.events = data.events || [];
+      const conferenceCount = this.events.filter(e => e.type === 'conference').length;
+      this.setCount(conferenceCount);
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Failed to fetch events';
       console.error('[TechEvents] Fetch error:', err);
@@ -72,7 +75,7 @@ export class TechEventsPanel extends Panel {
       this.content.innerHTML = `
         <div class="tech-events-loading">
           <div class="loading-spinner"></div>
-          <span>Loading tech events...</span>
+          <span>${t('techEvents.loading')}</span>
         </div>
       `;
       return;
@@ -83,7 +86,7 @@ export class TechEventsPanel extends Panel {
         <div class="tech-events-error">
           <span class="error-icon">⚠️</span>
           <span class="error-text">${escapeHtml(this.error)}</span>
-          <button class="retry-btn" onclick="this.closest('.panel').querySelector('.panel-content').__panel?.refresh()">Retry</button>
+          <button class="retry-btn" onclick="this.closest('.panel').querySelector('.panel-content').__panel?.refresh()">${t('techEvents.retry')}</button>
         </div>
       `;
       return;
@@ -109,7 +112,7 @@ export class TechEventsPanel extends Panel {
         <div class="tech-events-list">
           ${filteredEvents.length > 0
             ? filteredEvents.map(e => this.renderEvent(e)).join('')
-            : '<div class="empty-state">No events to display</div>'
+            : `<div class="empty-state">${t('techEvents.noEvents')}</div>`
           }
         </div>
       </div>
@@ -191,7 +194,7 @@ export class TechEventsPanel extends Panel {
     };
 
     const mapLink = event.coords && !event.coords.virtual
-      ? `<button class="event-map-link" data-lat="${event.coords.lat}" data-lng="${event.coords.lng}" title="Show on map">📍</button>`
+      ? `<button class="event-map-link" data-lat="${event.coords.lat}" data-lng="${event.coords.lng}" title="${t('techEvents.showOnMap')}">📍</button>`
       : '';
 
     const locationText = event.location
@@ -200,7 +203,7 @@ export class TechEventsPanel extends Panel {
 
     const safeEventUrl = sanitizeUrl(event.url || '');
     const urlLink = safeEventUrl
-      ? `<a href="${safeEventUrl}" target="_blank" rel="noopener" class="event-url" title="More info">↗</a>`
+      ? `<a href="${safeEventUrl}" target="_blank" rel="noopener" class="event-url" title="${t('techEvents.moreInfo')}">↗</a>`
       : '';
 
     return `

@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-02-25
+title: Docker Deployment
+description: Convert Vercel Edge Functions to Docker container with Express server
+owner: claude
+status: completed

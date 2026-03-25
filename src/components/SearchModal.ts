@@ -1,4 +1,5 @@
 import { escapeHtml } from '@/utils/sanitize';
+import { t } from '@/i18n';
 
 export type SearchResultType = 'news' | 'hotspot' | 'market' | 'prediction' | 'conflict' | 'base' | 'pipeline' | 'cable' | 'datacenter' | 'earthquake' | 'outage' | 'nuclear' | 'irradiator' | 'techcompany' | 'ailab' | 'startup' | 'techevent' | 'techhq' | 'accelerator';
 
@@ -39,7 +40,7 @@ export class SearchModal {
 
   constructor(container: HTMLElement, options?: SearchModalOptions) {
     this.container = container;
-    this.placeholder = options?.placeholder || 'Search news, pipelines, bases, markets...';
+    this.placeholder = options?.placeholder || t('search.placeholder');
     this.hint = options?.hint || 'News • Pipelines • Bases • Cables • Datacenters • Markets';
     this.loadRecentSearches();
   }

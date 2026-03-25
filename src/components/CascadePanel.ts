@@ -8,6 +8,7 @@ import {
   type DependencyGraph,
 } from '@/services/infrastructure-cascade';
 import type { CascadeResult, CascadeImpactLevel, InfrastructureNode } from '@/types';
+import { t } from '@/i18n';
 
 type NodeFilter = 'all' | 'cable' | 'pipeline' | 'port' | 'chokepoint';
 
@@ -21,7 +22,8 @@ export class CascadePanel extends Panel {
   constructor() {
     super({
       id: 'cascade',
-      title: 'Infrastructure Cascade',
+      title: t('panels.infrastructureCascade'),
+      titleKey: 'panels.infrastructureCascade',
       showCount: true,
       trackActivity: true,
       infoTooltip: `<strong>Cascade Analysis</strong>
@@ -46,7 +48,7 @@ export class CascadePanel extends Panel {
       this.render();
     } catch (error) {
       console.error('[CascadePanel] Init error:', error);
-      this.showError('Failed to build dependency graph');
+      this.showError(t('cascade.failedToBuild'));
     }
   }
 

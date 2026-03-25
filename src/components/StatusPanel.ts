@@ -1,5 +1,6 @@
 import { escapeHtml } from '@/utils/sanitize';
-import { SITE_VARIANT } from '@/config';
+import { getVariant } from '@/config';
+import { t } from '@/i18n';
 
 type StatusLevel = 'ok' | 'warning' | 'error' | 'disabled';
 
@@ -48,36 +49,36 @@ export class StatusPanel {
 
   constructor() {
     // Set allowlists based on variant
-    this.allowedFeeds = SITE_VARIANT === 'tech' ? TECH_FEEDS : WORLD_FEEDS;
-    this.allowedApis = SITE_VARIANT === 'tech' ? TECH_APIS : WORLD_APIS;
+    this.allowedFeeds = getVariant() === 'tech' ? TECH_FEEDS : WORLD_FEEDS;
+    this.allowedApis = getVariant() === 'tech' ? TECH_APIS : WORLD_APIS;
 
     this.element = document.createElement('div');
     this.element.className = 'status-panel-container';
     this.element.innerHTML = `
-      <button class="status-panel-toggle" title="System Status">
+      <button class="status-panel-toggle" title="${t('status.systemStatus')}">
         <span class="status-icon">◉</span>
       </button>
       <div class="status-panel hidden">
         <div class="status-panel-header">
-          <span>System Health</span>
+          <span>${t('status.systemHealth')}</span>
           <button class="status-panel-close">×</button>
         </div>
         <div class="status-panel-content">
           <div class="status-section">
-            <div class="status-section-title">Data Feeds</div>
+            <div class="status-section-title">${t('status.dataFeeds')}</div>
             <div class="feeds-list"></div>
           </div>
           <div class="status-section">
-            <div class="status-section-title">API Status</div>
+            <div class="status-section-title">${t('status.apiStatus')}</div>
             <div class="apis-list"></div>
           </div>
           <div class="status-section">
-            <div class="status-section-title">Storage</div>
+            <div class="status-section-title">${t('status.storage')}</div>
             <div class="storage-info"></div>
           </div>
         </div>
         <div class="status-panel-footer">
-          <span class="last-check">Updated just now</span>
+          <span class="last-check">${t('status.updatedJustNow')}</span>
         </div>
       </div>
     `;
@@ -188,7 +189,7 @@ export class StatusPanel {
         <span class="status-dot ${escapeHtml(feed.status)}"></span>
         <span class="status-name">${escapeHtml(feed.name)}</span>
         <span class="status-detail">${escapeHtml(String(feed.itemCount))} items</span>
-        <span class="status-time">${escapeHtml(feed.lastUpdate ? this.formatTime(feed.lastUpdate) : 'Never')}</span>
+        <span class="status-time">${escapeHtml(feed.lastUpdate ? this.formatTime(feed.lastUpdate) : t('status.never'))}</span>
       </div>
     `).join('');
 
@@ -209,7 +210,7 @@ export class StatusPanel {
       if ('storage' in navigator && 'estimate' in navigator.storage) {
         const estimate = await navigator.storage.estimate();
         const used = estimate.usage ? (estimate.usage / 1024 / 1024).toFixed(2) : '0';
-        const quota = estimate.quota ? (estimate.quota / 1024 / 1024).toFixed(0) : 'N/A';
+        const quota = estimate.quota ? (estimate.quota / 1024 / 1024).toFixed(0) : t('status.notAvailable');
         container.innerHTML = `
           <div class="status-row">
             <span class="status-name">IndexedDB</span>
@@ -217,7 +218,7 @@ export class StatusPanel {
           </div>
         `;
       } else {
-        container.innerHTML = `<div class="status-row">Storage info unavailable</div>`;
+        container.innerHTML = `<div class="status-row">${t('status.storageUnavailable')}</div>`;
       }
     } catch {
       container.innerHTML = `<div class="status-row">Storage info unavailable</div>`;

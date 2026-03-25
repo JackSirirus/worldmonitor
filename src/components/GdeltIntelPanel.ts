@@ -9,6 +9,7 @@ import {
   type IntelTopic,
   type TopicIntelligence,
 } from '@/services/gdelt-intel';
+import { t } from '@/i18n';
 
 export class GdeltIntelPanel extends Panel {
   private activeTopic: IntelTopic = INTEL_TOPICS[0]!;
@@ -18,7 +19,8 @@ export class GdeltIntelPanel extends Panel {
   constructor() {
     super({
       id: 'gdelt-intel',
-      title: 'Live Intelligence',
+      title: t('panels.liveIntelligence'),
+      titleKey: 'panels.liveIntelligence',
       showCount: true,
       trackActivity: true,
       infoTooltip: `<strong>GDELT Intelligence</strong>
@@ -79,13 +81,13 @@ export class GdeltIntelPanel extends Panel {
       this.setCount(data.articles.length);
     } catch (error) {
       console.error('[GdeltIntelPanel] Load error:', error);
-      this.showError('Failed to load intelligence feed');
+      this.showError(t('gdeltIntel.failedToLoad'));
     }
   }
 
   private renderArticles(articles: GdeltArticle[]): void {
     if (articles.length === 0) {
-      this.content.innerHTML = '<div class="empty-state">No recent articles for this topic</div>';
+      this.content.innerHTML = `<div class="empty-state">${t('gdeltIntel.noRecentArticles')}</div>`;
       return;
     }
 
