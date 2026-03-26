@@ -1,46 +1,32 @@
 # ============================================
 # WorldMonitor Docker Image
-# Multi-stage build for production deployment
+# Production deployment with pre-built dist
 # ============================================
 
-# Stage 1: Build frontend
-FROM node:20-alpine AS builder
+# Build locally first:
+#   npm run build
+#
+# Then build Docker:
+#   docker-compose build worldmonitor
+#
+# This approach skips npm install inside Docker to avoid network issues
+
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files for frontend
-COPY package.json package-lock.json* ./
-COPY .env.example .env.local
-
-# Install frontend dependencies (include devDependencies for TypeScript)
-RUN npm install
-
-# Copy source files
-COPY . .
-
-# Build frontend (default variant)
-ENV VITE_VARIANT=full
-RUN npm run build
-
-# ============================================
-# Stage 2: Production server
-# ============================================
-FROM node:20-alpine AS server
-
-WORKDIR /app
-
-# Install all dependencies (including tsx for running TypeScript)
+# Install server dependencies (required for tsx)
 COPY server/package.json server/package-lock.json* ./
-RUN npm install
+RUN npm install --omit=dev && npm install tsx
 
 # Copy server source
 COPY server/ ./
 
-# Copy built frontend from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy pre-built frontend dist (you must run `npm run build` first)
+COPY dist ./dist
 
 # Create shared volume mount point
-RUN mkdir -p /app/dist-shared
+RUN mkdir -p /app/dist-shared /app/dist-mounted
 
 # Create entrypoint script to copy dist to shared volume
 RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
@@ -50,9 +36,6 @@ RUN echo '#!/bin/sh' > /docker-entrypoint.sh && \
     echo 'fi' >> /docker-entrypoint.sh && \
     echo 'exec npx tsx index.ts' >> /docker-entrypoint.sh && \
     chmod +x /docker-entrypoint.sh
-
-# Create mounted volume directory
-RUN mkdir -p /app/dist-mounted
 
 # Set production environment
 ENV NODE_ENV=production
