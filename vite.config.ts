@@ -325,8 +325,8 @@ export default defineConfig({
     },
   },
   build: {
-    // Use esbuild minifier
-    minify: 'esbuild',
+    // Use terser minifier for better TDZ handling
+    minify: 'terser',
     // Disable module preload polyfill to avoid initialization issues
     modulePreload: {
       polyfill: false,
