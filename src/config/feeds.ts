@@ -641,8 +641,20 @@ const TECH_FEEDS: Record<string, Feed[]> = {
   ],
 };
 
-// Variant-aware exports
-export const FEEDS = VARIANT === 'tech' ? TECH_FEEDS : FULL_FEEDS;
+// Variant-aware exports - use lazy getter to avoid TDZ issues
+let _feeds: Record<string, Feed[]> | null = null;
+export function getFEEDS(): Record<string, Feed[]> {
+  if (!_feeds) {
+    _feeds = VARIANT === 'tech' ? TECH_FEEDS : FULL_FEEDS;
+  }
+  return _feeds;
+}
+// For backward compatibility, also export as property
+export const FEEDS = new Proxy({} as Record<string, Feed[]>, {
+  get(_, prop) {
+    return getFEEDS()[prop as string];
+  }
+});
 
 export const INTEL_SOURCES: Feed[] = [
   // Defense & Security (Tier 1)

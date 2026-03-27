@@ -325,18 +325,15 @@ export default defineConfig({
     },
   },
   build: {
-    // Use terser minifier for better TDZ handling
-    minify: 'terser',
+    // Use esbuild minifier
+    minify: 'esbuild',
     // Disable module preload polyfill to avoid initialization issues
     modulePreload: {
       polyfill: false,
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'd3': ['d3'],
-          'topojson': ['topojson-client'],
-        },
+        // manualChunks removed to avoid TDZ issues with circular dependencies
       },
     },
   },

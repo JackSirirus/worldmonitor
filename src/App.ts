@@ -1334,9 +1334,18 @@ export class App {
           </div>
         </div>
         <div class="header-right">
-          <button class="header-btn" id="languageBtn" title="Language">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          </button>
+          <div class="language-switcher" id="languageSwitcher">
+            <button class="lang-btn" data-current-locale="${getCurrentLocale()}" aria-haspopup="true" aria-label="Change language">
+              <span class="lang-flag"></span>
+              <span class="lang-name"></span>
+              <span class="lang-arrow">▼</span>
+            </button>
+            <div class="lang-dropdown hidden">
+              <button class="lang-option" data-locale="en"><span>🌐</span> English</button>
+              <button class="lang-option" data-locale="zh-cn"><span>🌐</span> 简体</button>
+              <button class="lang-option" data-locale="zh-tw"><span>🌐</span> 繁體</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="app-layout">

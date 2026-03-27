@@ -21,21 +21,14 @@ function getCorsOrigin(req: express.Request): string {
 }
 
 // Handler for /api/eia/* routes
-router.all('/', async (req, res) => {
+// Use /* to match all paths including /health and /petroleum
+router.all('/*', async (req, res) => {
   const corsOrigin = getCorsOrigin(req);
+  const path = req.path;
 
   // Only allow GET and OPTIONS methods
   if (req.method !== 'GET' && req.method !== 'OPTIONS') {
     return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const apiKey = process.env.EIA_API_KEY;
-
-  if (!apiKey) {
-    return res.status(503).json({
-      error: 'EIA API not configured',
-      configured: false,
-    });
   }
 
   // Handle CORS preflight
@@ -49,10 +42,11 @@ router.all('/', async (req, res) => {
       .send();
   }
 
-  // Health check
-  const path = req.path;
-  if (path === '/health' || path === '/') {
-    return res.set({ 'Access-Control-Allow-Origin': corsOrigin }).json({ configured: true });
+  const apiKey = process.env.EIA_API_KEY;
+
+  // Health check - path could be '/' or '/health' (req.path is relative to mount point)
+  if (path === '/' || path === '/health') {
+    return res.set({ 'Access-Control-Allow-Origin': corsOrigin }).json({ configured: !!apiKey });
   }
 
   // Petroleum data endpoint

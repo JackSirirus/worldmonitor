@@ -1,5 +1,6 @@
 import type { PanelConfig, MapLayers } from '@/types';
-import { getVariant } from './index';
+// Use import.meta.env directly instead of getVariant() to avoid circular dependency
+const VARIANT = (import.meta.env.VITE_VARIANT || 'full') as 'tech' | 'full';
 
 // ============================================
 // FULL VARIANT (Geopolitical)
@@ -205,9 +206,9 @@ const TECH_MOBILE_MAP_LAYERS: MapLayers = {
 // ============================================
 // VARIANT-AWARE EXPORTS
 // ============================================
-export const DEFAULT_PANELS = getVariant() === 'tech' ? TECH_PANELS : FULL_PANELS;
-export const DEFAULT_MAP_LAYERS = getVariant() === 'tech' ? TECH_MAP_LAYERS : FULL_MAP_LAYERS;
-export const MOBILE_DEFAULT_MAP_LAYERS = getVariant() === 'tech' ? TECH_MOBILE_MAP_LAYERS : FULL_MOBILE_MAP_LAYERS;
+export const DEFAULT_PANELS = VARIANT === 'tech' ? TECH_PANELS : FULL_PANELS;
+export const DEFAULT_MAP_LAYERS = VARIANT === 'tech' ? TECH_MAP_LAYERS : FULL_MAP_LAYERS;
+export const MOBILE_DEFAULT_MAP_LAYERS = VARIANT === 'tech' ? TECH_MOBILE_MAP_LAYERS : FULL_MOBILE_MAP_LAYERS;
 
 export const MONITOR_COLORS = [
   '#44ff88',
