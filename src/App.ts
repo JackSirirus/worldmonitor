@@ -2383,7 +2383,9 @@ export class App {
 
     // Handle dropdown option click
     switcher.querySelectorAll('.lang-option').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent event from bubbling to parent switcher
+        e.preventDefault();
         const locale = (btn as HTMLElement).dataset.locale as 'en' | 'zh-cn' | 'zh-tw';
         setLanguage(locale);
         updateSwitcherUI();
@@ -2391,8 +2393,9 @@ export class App {
         switcher.classList.remove('open');
         (switcher.querySelector('.lang-dropdown') as HTMLElement).classList.add('hidden');
         (switcher.querySelector('.lang-arrow') as HTMLElement).style.transform = 'rotate(0deg)';
-        // Re-render all panels to update translations
-        this.renderLayout();
+        // NOTE: Do NOT call renderLayout() here - it destroys dynamically added elements
+        // The 'languagechanged' event (dispatched by setLanguage) will update translations
+        // in components that listen for it.
       });
     });
 
