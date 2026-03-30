@@ -1296,6 +1296,8 @@ export class App {
     this.renderPanelToggles();
     this.updateTime();
     this.timeIntervalId = setInterval(() => this.updateTime(), 1000);
+    // Re-initialize language switcher since DOM was replaced
+    this.setupLanguageSwitcher();
   }
 
   /**
@@ -1388,6 +1390,8 @@ export class App {
 
     // Initialize new layout components
     this.initNewLayoutComponents();
+    // Re-initialize language switcher since DOM was replaced
+    this.setupLanguageSwitcher();
   }
 
   /**
@@ -2111,9 +2115,6 @@ export class App {
   }
 
   private setupEventListeners(): void {
-    // Language switcher
-    this.setupLanguageSwitcher();
-
     // Search button
     document.getElementById('searchBtn')?.addEventListener('click', () => {
       this.updateSearchIndex();
