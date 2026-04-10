@@ -1,6 +1,7 @@
 /**
  * AI Providers Service
  * Multi-provider AI chat interface with automatic failover
+ * Includes rate limiting, request coalescing, and multi-tier fallback
  */
 
 export interface ChatMessage {
@@ -29,10 +30,234 @@ export interface ChatCompletionResponse {
   };
 }
 
+export interface RateLimitInfo {
+  limitRequests: number;
+  remainingRequests: number;
+  resetRequests: string;
+  limitTokens: number;
+  remainingTokens: number;
+  retryAfter?: number;
+}
+
 export interface AIProvider {
   name: string;
   chat(request: ChatCompletionRequest): Promise<ChatCompletionResponse>;
   isHealthy(): boolean;
+}
+
+// ============================================================================
+// Rate Limited Queue
+// ============================================================================
+
+/**
+ * Parses rate limit headers from API response
+ */
+export function parseRateLimitHeaders(response: Response): RateLimitInfo {
+  const getHeader = (name: string): number | string | undefined => {
+    const value = response.headers.get(name);
+    if (value === null) return undefined;
+    const num = Number(value);
+    return isNaN(num) ? value : num;
+  };
+
+  return {
+    limitRequests: (getHeader('x-ratelimit-limit-requests') as number) || 14400,
+    remainingRequests: (getHeader('x-ratelimit-remaining-requests') as number) || 14399,
+    resetRequests: (getHeader('x-ratelimit-reset-requests') as string) || '',
+    limitTokens: (getHeader('x-ratelimit-limit-tokens') as number) || 18000,
+    remainingTokens: (getHeader('x-ratelimit-remaining-tokens') as number) || 17999,
+    retryAfter: response.status === 429 ? (getHeader('retry-after') as number) : undefined,
+  };
+}
+
+/**
+ * RateLimitedQueue - Controls API call frequency to stay within rate limits
+ */
+class RateLimitedQueue {
+  private queue: Array<{
+    request: ChatCompletionRequest;
+    resolve: (value: ChatCompletionResponse) => void;
+    reject: (error: Error) => void;
+    priority: number;
+  }> = [];
+
+  private processing = false;
+  private lastRequestTime = 0;
+  private cooldownUntil = 0; // Don't make requests until this time
+
+  // Groq free tier: ~14-30 RPM, use conservative 10 RPM
+  private minInterval = 60000 / 10; // ~6 seconds between requests
+
+  /**
+   * Update rate limit info from API response
+   */
+  updateRateLimit(info: RateLimitInfo): void {
+    if (info.remainingRequests > 0) {
+      // Dynamic interval based on remaining requests
+      this.minInterval = Math.max(2000, 60000 / Math.min(info.remainingRequests, 10));
+    }
+    if (info.remainingRequests < 10) {
+      // Very low remaining, increase interval significantly
+      this.minInterval = Math.max(4000, 60000 / info.remainingRequests);
+    }
+  }
+
+  /**
+   * Add a request to the queue
+   */
+  async add(
+    request: ChatCompletionRequest,
+    provider: AIProvider,
+    priority: number = 0
+  ): Promise<ChatCompletionResponse> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ request, resolve, reject, priority });
+      // Sort by priority (higher first)
+      this.queue.sort((a, b) => b.priority - a.priority);
+      this.processQueue(provider);
+    });
+  }
+
+  private async processQueue(provider: AIProvider): Promise<void> {
+    if (this.processing || this.queue.length === 0) return;
+
+    const now = Date.now();
+
+    // Check if we're in cooldown due to rate limiting
+    if (now < this.cooldownUntil) {
+      const waitTime = this.cooldownUntil - now;
+      setTimeout(() => this.processQueue(provider), waitTime);
+      return;
+    }
+
+    const timeSinceLastRequest = now - this.lastRequestTime;
+
+    if (timeSinceLastRequest < this.minInterval) {
+      // Wait until minimum interval has passed
+      setTimeout(() => this.processQueue(provider), this.minInterval - timeSinceLastRequest);
+      return;
+    }
+
+    this.processing = true;
+    const item = this.queue.shift()!;
+
+    try {
+      this.lastRequestTime = Date.now();
+      const response = await provider.chat(item.request);
+      item.resolve(response);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // If rate limited, set cooldown for 60 seconds
+      if (message.includes('429') || message.includes('rate limit')) {
+        this.cooldownUntil = Date.now() + 60000;
+        console.log(`[RateLimit] Rate limited, cooldown until ${new Date(this.cooldownUntil).toISOString()}`);
+      }
+      item.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+
+    this.processing = false;
+
+    // Continue processing if more items in queue
+    if (this.queue.length > 0) {
+      setTimeout(() => this.processQueue(provider), 100);
+    }
+  }
+
+  /**
+   * Get current queue length
+   */
+  getQueueLength(): number {
+    return this.queue.length;
+  }
+}
+
+// Global rate limited queue for Groq
+const groqRateLimitQueue = new RateLimitedQueue();
+
+// Request coalescing - cache ongoing requests to deduplicate
+const pendingRequests = new Map<string, Promise<ChatCompletionResponse>>();
+
+/**
+ * Get or create a request with coalescing
+ * If a request with the same cacheKey is already in progress, returns the existing promise
+ */
+function getOrCreateRequest(
+  cacheKey: string,
+  request: ChatCompletionRequest,
+  provider: AIProvider,
+  priority: number = 0
+): Promise<ChatCompletionResponse> {
+  const existing = pendingRequests.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = groqRateLimitQueue.add(request, provider, priority);
+  pendingRequests.set(cacheKey, promise);
+
+  // Clean up when done
+  promise.finally(() => {
+    pendingRequests.delete(cacheKey);
+  });
+
+  return promise;
+}
+
+// Fallback order: Groq -> OpenRouter -> MiniMax -> Lepton
+const FALLBACK_ORDER = ['Groq', 'OpenRouter', 'MiniMax', 'Lepton'];
+const MAX_RETRIES = 3;
+const RETRY_DELAY_BASE = 1000; // 1 second base delay
+
+/**
+ * Sleep for specified milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Chat with automatic retry, rate limiting, and multi-tier fallback
+ */
+async function chatWithFallback(
+  request: ChatCompletionRequest,
+  providerName: string,
+  isPrimary: boolean = false
+): Promise<{ response: ChatCompletionResponse; provider: string; fallback: boolean }> {
+  const provider = providers.find(p => p.name === providerName);
+  if (!provider || !provider.isHealthy()) {
+    throw new Error(`${providerName} is not available`);
+  }
+
+  try {
+    if (providerName === 'Groq' && isPrimary) {
+      // Use rate-limited queue for primary Groq calls
+      const response = await getOrCreateRequest(
+        JSON.stringify(request),
+        request,
+        provider,
+        1 // High priority
+      );
+      return { response, provider: providerName, fallback: false };
+    } else {
+      // Direct call for fallback providers
+      const response = await provider.chat(request);
+      return { response, provider: providerName, fallback: providerName !== 'Groq' };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Check if it's a rate limit error
+    if (message.includes('429') || message.includes('rate limit')) {
+      if (isPrimary) {
+        // For primary Groq calls, try fallback immediately without retry
+        console.log(`[AI] Groq rate limited, switching to fallback`);
+        throw error; // Let outer handler deal with fallback
+      }
+      throw error;
+    }
+
+    throw error;
+  }
 }
 
 /**
@@ -92,9 +317,9 @@ class MiniMaxProvider implements AIProvider {
     const systemMessage = request.messages.find(m => m.role === 'system')?.content || '';
     const userMessages = request.messages.filter(m => m.role !== 'system');
 
-    // Map model names
+    // Map model names - handle both Groq and OpenAI model names
     let model = request.model;
-    if (model === 'default' || !model) {
+    if (model === 'default' || !model || model.includes('llama') || model.includes('gpt')) {
       model = 'MiniMax-M2.5';
     }
 
@@ -149,7 +374,7 @@ class MiniMaxProvider implements AIProvider {
 }
 
 /**
- * Groq Provider
+ * Groq Provider with rate limit awareness
  */
 class GroqProvider implements AIProvider {
   name = 'Groq';
@@ -171,9 +396,13 @@ class GroqProvider implements AIProvider {
       throw new Error('Groq API key not configured');
     }
 
+    // Map model names to Groq-compatible names
+    let model = request.model;
+    if (model === 'default' || !model) {
+      model = 'llama-3.1-8b-instant'; // Default Groq model
+    }
     // Groq uses model names without the "meta-llama/" prefix
-    // e.g., "llama-3.1-8b-instant" instead of "meta-llama/llama-3.1-8b-instant"
-    const model = request.model.replace(/^meta-llama\//, '');
+    model = model.replace(/^meta-llama\//, '');
 
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -183,6 +412,10 @@ class GroqProvider implements AIProvider {
       },
       body: JSON.stringify({ ...request, model }),
     });
+
+    // Parse and update rate limit info
+    const rateLimitInfo = parseRateLimitHeaders(response);
+    groqRateLimitQueue.updateRateLimit(rateLimitInfo);
 
     if (!response.ok) {
       const error = await response.text();
@@ -259,13 +492,19 @@ class LeptonProvider implements AIProvider {
       throw new Error('Lepton API key not configured');
     }
 
+    // Map model names to Lepton-compatible names
+    let model = request.model;
+    if (model === 'default' || !model) {
+      model = 'llama-3.1-8b-instant';
+    }
+
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, model }),
     });
 
     if (!response.ok) {
@@ -331,11 +570,15 @@ export function getProviderHealth(): Array<{ name: string; healthy: boolean; fai
 }
 
 /**
- * Chat with automatic failover
+ * Chat with automatic failover, rate limiting, and multi-tier fallback
  */
-export async function chat(request: ChatCompletionRequest): Promise<{
+export async function chat(
+  request: ChatCompletionRequest,
+  options?: { skipRateLimit?: boolean }
+): Promise<{
   response: ChatCompletionResponse;
   provider: string;
+  fallback: boolean;
 }> {
   const available = getAvailableProviders();
 
@@ -343,22 +586,34 @@ export async function chat(request: ChatCompletionRequest): Promise<{
     throw new Error('No AI providers available. Please configure at least one API key.');
   }
 
-  const errors: string[] = [];
+  const errors: Array<{ provider: string; error: string }> = [];
 
-  for (const provider of available) {
+  // Try providers in fallback order
+  for (const providerName of FALLBACK_ORDER) {
+    if (!available.find(p => p.name === providerName)) {
+      continue; // Skip unavailable providers
+    }
+
+    const isPrimary = providerName === 'Groq';
+
     try {
-      const response = await provider.chat(request);
-      recordSuccess(provider);
-      return { response, provider: provider.name };
+      const result = await chatWithFallback(request, providerName, isPrimary);
+      recordSuccess(available.find(p => p.name === providerName)!);
+      return result;
     } catch (error) {
-      recordFailure(provider);
       const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${provider.name}: ${message}`);
-      console.error(`[AI] ${provider.name} failed:`, message);
+      errors.push({ provider: providerName, error: message });
+      recordFailure(available.find(p => p.name === providerName)!);
+
+      // Log fallback event
+      if (providerName !== FALLBACK_ORDER[FALLBACK_ORDER.length - 1]) {
+        console.log(`[AI] ${providerName} failed (${message}), trying next fallback...`);
+      }
     }
   }
 
-  throw new Error(`All AI providers failed: ${errors.join('; ')}`);
+  // All providers failed
+  throw new Error(`All AI providers failed: ${errors.map(e => `${e.provider}: ${e.error}`).join('; ')}`);
 }
 
 /**

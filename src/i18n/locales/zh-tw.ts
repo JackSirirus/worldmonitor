@@ -18,6 +18,11 @@ export default {
     acledNotConfigured: 'ACLED未配置 - 僅使用GDELT',
     unknownError: '未知錯誤',
     search: '搜尋...',
+    // AI 服務降級相關文案
+    aiServiceBusy: 'AI 服務暫時繁忙，已切換到備用模式',
+    aiServiceFallback: '正在使用備用 AI 服務',
+    aiRateLimited: 'AI 服務請求頻率超限，請稍後再試',
+    aiServiceError: 'AI 服務錯誤，請稍後再試',
   },
   panels: {
     globalMap: '全球地圖',
@@ -95,6 +100,7 @@ export default {
   chat: {
     welcome: '問我關於世界事件、新聞分析，或生成報告。',
     placeholder: '輸入問題...',
+    you: '你',
   },
   reports: {
     generateTech: '生成科技報告',

@@ -9,6 +9,7 @@ import Parser from 'rss-parser';
 import { classifyByKeyword } from '../services/threat-classifier.js';
 import { analyzeSentiment } from '../services/sentiment-analysis.js';
 import { getSourceTier } from '../config/source-tiers.js';
+import { translateNewsBatch, ensureTranslationTable } from '../services/translation.js';
 
 // RSS Parser instance
 const parser = new Parser({
@@ -321,6 +322,28 @@ export async function fetchRSSSources(
   }
 
   info(sessionId, sessionId, `RSS collection complete: ${collected} items collected, ${errors} errors`);
+
+  // Translate newly collected items asynchronously (don't block)
+  if (collected > 0) {
+    setImmediate(async () => {
+      try {
+        // Ensure translation table exists
+        await ensureTranslationTable();
+
+        // Translate items that need it (limit to 50 per run to avoid rate limits)
+        const { getNewsNeedingTranslation } = await import('../repositories/news.js');
+        const itemsToTranslate = await getNewsNeedingTranslation(50);
+        if (itemsToTranslate.length > 0) {
+          info(sessionId, sessionId, `Translating ${itemsToTranslate.length} items to Chinese`);
+          await translateNewsBatch(itemsToTranslate, 'zh');
+          info(sessionId, sessionId, `Translation complete`);
+        }
+      } catch (err) {
+        console.error('[RSS Collector] Translation error:', err);
+      }
+    });
+  }
+
   return { collected, errors };
 }
 

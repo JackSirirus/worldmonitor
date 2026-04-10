@@ -11,28 +11,41 @@ const router = Router();
 /**
  * POST /api/ai/chat
  * Chat completion endpoint
+ *
+ * Accepts both formats:
+ * 1. { messages: [{role, content}], ... } - standard format
+ * 2. { message: "text", context?: {...} } - simple single message format
  */
 router.post('/chat', async (req, res) => {
   try {
-    const { messages, model, temperature, max_tokens } = req.body;
+    const { messages, message, context, model, temperature, max_tokens } = req.body;
 
-    if (!messages || !Array.isArray(messages)) {
+    let chatMessages: { role: 'user' | 'assistant' | 'system'; content: string }[];
+
+    if (messages && Array.isArray(messages)) {
+      // Standard format: messages array
+      chatMessages = messages;
+    } else if (message && typeof message === 'string') {
+      // Simple format: single message string with optional context
+      chatMessages = [{ role: 'user', content: message }];
+    } else {
       return res.status(400).json({
         error: 'Invalid request',
-        message: 'messages array is required',
+        message: 'Either messages array or message string is required',
       });
     }
 
     const result = await chat({
       model: model || 'default',
-      messages,
+      messages: chatMessages,
       temperature,
       max_tokens,
     });
 
     res.json({
-      ...result.response,
+      response: result.response.choices[0]?.message?.content || 'No response',
       provider: result.provider,
+      ...result.response,
     });
   } catch (error) {
     console.error('[AI Chat] Error:', error);

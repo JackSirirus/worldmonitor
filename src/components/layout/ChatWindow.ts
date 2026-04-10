@@ -11,10 +11,12 @@ export class ChatWindow {
   private container: HTMLElement;
   private element: HTMLElement;
   private store = useChatStore;
+  private onLanguageChange: () => void;
 
   constructor(container: HTMLElement) {
     this.container = container;
     this.element = this.createElement();
+    this.onLanguageChange = () => this.render();
     this.render();
     this.bindEvents();
   }
@@ -112,24 +114,26 @@ export class ChatWindow {
   }
 
   private bindEvents(): void {
-    // Send button
-    const sendBtn = this.element.querySelector('#chat-send');
-    sendBtn?.addEventListener('click', () => this.handleSend());
+    // Listen for language changes to re-render UI text
+    document.addEventListener('languagechanged', this.onLanguageChange);
 
-    // Input enter key
-    const input = this.element.querySelector('#chat-input') as HTMLInputElement;
-    input?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
+    // Use event delegation on container since innerHTML replacement destroys elements
+    this.container.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('#chat-send')) {
         this.handleSend();
+      } else if (target.closest('#chat-clear')) {
+        this.store.getState().clearMessages();
+        this.render();
       }
     });
 
-    // Clear button
-    const clearBtn = this.element.querySelector('#chat-clear');
-    clearBtn?.addEventListener('click', () => {
-      this.store.getState().clearMessages();
-      this.render();
+    // Input enter key - also delegated
+    this.container.addEventListener('keydown', (e) => {
+      if (e.target && (e.target as HTMLElement).id === 'chat-input' && e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.handleSend();
+      }
     });
 
     // Subscribe to store changes
@@ -153,6 +157,7 @@ export class ChatWindow {
   }
 
   public destroy(): void {
+    document.removeEventListener('languagechanged', this.onLanguageChange);
     this.element.remove();
   }
 }

@@ -17,6 +17,11 @@ export default {
     aisUnavailable: 'AIS snapshot unavailable',
     acledNotConfigured: 'ACLED not configured - using GDELT only',
     unknownError: 'Unknown error',
+    // AI service fallback messages
+    aiServiceBusy: 'AI service is temporarily busy, switched to backup mode',
+    aiServiceFallback: 'Using backup AI service',
+    aiRateLimited: 'AI service rate limit reached, please try again later',
+    aiServiceError: 'AI service error, please try again',
   },
   panels: {
     globalMap: 'Global Map',
@@ -580,6 +585,15 @@ export default {
       available: 'Available',
       unavailable: 'Unavailable',
     },
+  },
+  chat: {
+    welcome: 'Ask me about world events, news analysis, or generate reports.',
+    placeholder: 'Ask a question...',
+    you: 'You',
+  },
+  reports: {
+    generateTech: 'Generate Tech Report',
+    generateWorld: 'Generate World Report',
   },
   buttons: {
     refresh: 'Refresh',

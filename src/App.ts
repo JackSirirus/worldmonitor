@@ -2349,6 +2349,12 @@ export class App {
     const switcher = document.getElementById('languageSwitcher') as HTMLElement;
     if (!switcher) return;
 
+    // Guard: prevent multiple setup - check if already initialized
+    if ((switcher as any)._languageSwitcherInitialized) {
+      return;
+    }
+    (switcher as any)._languageSwitcherInitialized = true;
+
     // Render current language
     const updateSwitcherUI = () => {
       const current = getCurrentLocale();

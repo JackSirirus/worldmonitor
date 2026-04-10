@@ -69,6 +69,7 @@
 | GDELT 数据 | [API-08](./08-api.md#3-地图数据-api) |
 | Git 工作流 | [规范-07](./07-development-standards.md#git-工作流) |
 | GROQ_API_KEY | [配置-05](./05-configuration.md#ai-服务) |
+| Groq API 速率限制 | [AI-11](./11-ai-processing.md#54-groq-api-速率限制处理) |
 
 ### H
 
@@ -138,6 +139,7 @@
 | 主题 | 位置 |
 |------|------|
 | Railway 部署 | [部署-06](./06-deployment.md#方式一vercel--railway-推荐) |
+| Rate Limiting | [AI-11](./11-ai-processing.md#54-groq-api-速率限制处理) |
 | Redis 缓存 | [配置-05](./05-configuration.md#redis-缓存) |
 | RSS 代理 | [API-08](./08-api.md#1-rss-与新闻-api) |
 | RSS 收集 | [AI-11](./11-ai-processing.md#3-ai-agent-工作流程) |

@@ -7,7 +7,9 @@ import { create } from 'zustand';
 export interface NewsItem {
   id: number;
   title: string;
+  title_zh?: string | null;
   description?: string;
+  description_zh?: string | null;
   source?: string;
   url?: string;
   pub_date: string;

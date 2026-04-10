@@ -9,8 +9,10 @@ export interface NewsItem {
   id: number;
   source_url: string;
   title: string;
+  title_zh?: string | null;
   link: string;
   description: string | null;
+  description_zh?: string | null;
   pub_date: Date | null;
   category: string | null;
   fetched_at: Date;
@@ -81,11 +83,11 @@ export async function getNews(
   );
   const total = parseInt(countResult.rows[0]?.count || '0', 10);
 
-  // Get items - include source as alias for source_url, and threat classification
+  // Get items - include source as alias for source_url, and threat classification, and Chinese translations
   const limitParam = params.length + 1;
   const offsetParam = params.length + 2;
   const itemsResult = await query<NewsItem>(
-    `SELECT id, title, description, link as url, pub_date, category, source_url as source,
+    `SELECT id, title, title_zh, description, description_zh, link as url, pub_date, category, source_url as source,
             threat_level, threat_category, sentiment_score, sentiment_label
      FROM rss_items ${whereClause}
      ORDER BY pub_date DESC NULLS LAST
@@ -202,6 +204,38 @@ export async function getSources(): Promise<Array<{ url: string; name: string }>
   return result.rows;
 }
 
+/**
+ * Update translation fields for a news item
+ */
+export async function updateNewsTranslation(
+  id: number,
+  title_zh: string,
+  description_zh: string
+): Promise<void> {
+  await query(
+    `UPDATE rss_items
+     SET title_zh = $2, description_zh = $3
+     WHERE id = $1`,
+    [id, title_zh, description_zh]
+  );
+}
+
+/**
+ * Get news items that need translation (no Chinese translation yet)
+ */
+export async function getNewsNeedingTranslation(limit: number = 100): Promise<NewsItem[]> {
+  const result = await query<NewsItem>(
+    `SELECT id, title, description, link
+     FROM rss_items
+     WHERE (title_zh IS NULL OR description_zh IS NULL)
+       AND created_at > NOW() - INTERVAL '7 days'
+     ORDER BY created_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
 export default {
   getNews,
   getNewsById,
@@ -212,4 +246,6 @@ export default {
   deleteOldNews,
   getCategories,
   getSources,
+  updateNewsTranslation,
+  getNewsNeedingTranslation,
 };

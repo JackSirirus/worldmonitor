@@ -62,6 +62,7 @@ export class Panel {
   private onTouchMove: ((e: TouchEvent) => void) | null = null;
   private onTouchEnd: (() => void) | null = null;
   private onDocMouseUp: (() => void) | null = null;
+  private onLanguageChange: (() => void) | null = null;
 
   constructor(options: PanelOptions) {
     this.panelId = options.id;
@@ -82,12 +83,12 @@ export class Panel {
     headerLeft.appendChild(this.titleEl);
 
     // Listen for language changes to update title
-    const handleLanguageChange = () => {
+    this.onLanguageChange = () => {
       if (this.titleEl && this.titleKey) {
         this.titleEl.textContent = t(this.titleKey);
       }
     };
-    document.addEventListener('languagechanged', handleLanguageChange);
+    document.addEventListener('languagechanged', this.onLanguageChange);
 
     if (options.infoTooltip) {
       const infoBtn = document.createElement('button');
@@ -376,6 +377,10 @@ export class Panel {
    * Clean up event listeners and resources
    */
   public destroy(): void {
+    if (this.onLanguageChange) {
+      document.removeEventListener('languagechanged', this.onLanguageChange);
+      this.onLanguageChange = null;
+    }
     if (this.tooltipCloseHandler) {
       document.removeEventListener('click', this.tooltipCloseHandler);
       this.tooltipCloseHandler = null;

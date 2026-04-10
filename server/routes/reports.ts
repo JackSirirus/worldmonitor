@@ -90,13 +90,8 @@ router.get('/:id', async (req, res) => {
 
     const report = result.rows[0];
 
-    // Return as Markdown if format is markdown
-    if (report.format === 'markdown') {
-      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-      res.send(report.content);
-    } else {
-      res.json(report);
-    }
+    // Always return as JSON - frontend expects JSON
+    res.json(report);
   } catch (error) {
     logger.error({ err: error }, '[Reports API] Error fetching report');
     res.status(500).json({

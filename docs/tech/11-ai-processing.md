@@ -366,3 +366,53 @@ API 请求失败
     ▼
 检查本地回退数据 ──▶ 返回基准值
 ```
+
+### 5.4 Groq API 速率限制处理
+
+#### 限制参数
+
+| 限制类型 | 免费版数值 | 说明 |
+|---------|-----------|------|
+| RPD (Requests Per Day) | 14,400 | 每天请求数上限 |
+| RPM (Requests Per Minute) | ~14-30 | 每分钟请求数上限 |
+| TPM (Tokens Per Minute) | ~18,000 | 每分钟 Token 数上限 |
+
+#### 速率限制处理机制
+
+**服务端 (`server/services/ai-providers.ts`)：**
+- `RateLimitedQueue`：控制并发请求数，避免触发限制
+- `parseRateLimitHeaders()`：解析 `x-ratelimit-*` 响应头
+- 动态调整请求间隔：根据 `remainingRequests` 动态计算最小间隔
+- 请求合并：相同缓存键的请求共享一个 API 调用
+
+**降级链路：**
+```
+Groq API
+    │
+    ├─ 成功 ──▶ 返回结果
+    │
+    ├─ 429 限流
+    │   ├─ 重试 3 次（指数退避）
+    │   └─ 重试耗尽 ──▶ 降级到 OpenRouter
+    │
+    └─ 其他错误 ──▶ 降级到 OpenRouter
+            │
+            ├─ OpenRouter 失败 ──▶ MiniMax
+            │
+            └─ MiniMax 失败 ──▶ Lepton
+                    │
+                    └─ 全部失败 ──▶ 返回降级错误
+```
+
+**Edge Function (`api/groq-summarize.js`)：**
+- 解析速率限制响应头用于监控日志
+- 429 错误时指数退避重试（最多 3 次）
+- 降级时返回 `fallback: true` 标志
+
+#### i18n 降级文案
+
+| 语言 | 限流降级文案 |
+|------|-------------|
+| en | "AI service is temporarily busy, switched to backup mode" |
+| zh-CN | "AI 服务暂时繁忙，已切换到备用模式" |
+| zh-TW | "AI 服務暫時繁忙，已切換到備用模式" |

@@ -11,10 +11,12 @@ export class ReportPanel {
   private container: HTMLElement;
   private element: HTMLElement;
   private store = useReportStore;
+  private onLanguageChange: () => void;
 
   constructor(container: HTMLElement) {
     this.container = container;
     this.element = this.createElement();
+    this.onLanguageChange = () => this.render();
     this.render();
     this.bindEvents();
   }
@@ -104,6 +106,9 @@ export class ReportPanel {
   }
 
   private bindEvents(): void {
+    // Listen for language changes to re-render
+    document.addEventListener('languagechanged', this.onLanguageChange);
+
     // Generate tech report
     const techBtn = this.element.querySelector('#generate-tech-report');
     techBtn?.addEventListener('click', () => {
@@ -144,15 +149,24 @@ export class ReportPanel {
       }
     });
 
-    // Report item click
-    const reportList = this.element.querySelector('#report-list');
-    reportList?.addEventListener('click', async (e) => {
-      const target = (e.target as HTMLElement).closest('.report-item') as HTMLElement;
+    // Report item click - attach to container for event delegation
+    // Using container instead of #report-list because innerHTML replacement in render() destroys the list element
+    this.container.addEventListener('click', async (e) => {
+      const targetEl = e.target as HTMLElement;
+      const target = targetEl?.closest('.report-item') as HTMLElement;
       if (target) {
         const id = parseInt(target.dataset.id || '0');
         if (id) {
-          await this.store.getState().fetchReport(id);
-          this.render();
+          try {
+            const response = await fetch(`/api/reports/${id}`);
+            if (response.ok) {
+              const report = await response.json();
+              this.store.getState().setCurrentReport(report);
+              this.render();
+            }
+          } catch (error) {
+            console.error('Failed to fetch report:', error);
+          }
         }
       }
     });
@@ -177,6 +191,7 @@ export class ReportPanel {
   }
 
   public destroy(): void {
+    document.removeEventListener('languagechanged', this.onLanguageChange);
     this.element.remove();
   }
 }

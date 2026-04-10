@@ -240,6 +240,8 @@ function autoBackendProxyPlugin(): Plugin {
           '/api/acled',
           '/api/adsb-exchange',
           '/api/opensky',
+          '/api/reports',
+          '/api/ai/chat',
         ];
 
         // Use server.middlewares to add our proxy handler at the beginning
@@ -269,12 +271,12 @@ function autoBackendProxyPlugin(): Plugin {
 
           try {
             // Collect request body if present
-            let body: ArrayBuffer | undefined;
+            let body: string | undefined;
             if (req.method !== 'GET' && req.method !== 'HEAD') {
-              body = await new Promise<ArrayBuffer>((resolve, reject) => {
+              body = await new Promise<string>((resolve, reject) => {
                 const chunks: Buffer[] = [];
                 req.on('data', (chunk: Buffer) => chunks.push(chunk));
-                req.on('end', () => resolve(Buffer.concat(chunks).buffer));
+                req.on('end', () => resolve(Buffer.concat(chunks).toString()));
                 req.on('error', reject);
               });
             }
@@ -291,7 +293,7 @@ function autoBackendProxyPlugin(): Plugin {
             const response = await fetch(target, {
               method: req.method,
               headers,
-              body,
+              body: body || undefined,
             });
 
             const data = await response.arrayBuffer();

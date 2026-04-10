@@ -3,6 +3,7 @@
  * Uses Llama 3.1 8B Instant for high-throughput summarization
  * Free tier: 14,400 requests/day (14x more than 70B model)
  * Server-side Redis cache for cross-user deduplication
+ * Includes rate limit handling and retry logic
  */
 
 import { Redis } from '@upstash/redis';
@@ -14,6 +15,8 @@ export const config = {
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.1-8b-instant'; // 14.4K RPD vs 1K for 70b
 const CACHE_TTL_SECONDS = 86400; // 24 hours
+const MAX_RETRIES = 3;
+const BASE_RETRY_DELAY = 1000; // 1 second
 
 // Initialize Redis (lazy - only if env vars present)
 let redis = null;
@@ -215,23 +218,71 @@ Rules:
       userPrompt = `Key takeaway:\n${headlineText}${intelSection}`;
     }
 
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 150,
-        top_p: 0.9,
-      }),
-    });
+    // Parse rate limit headers for monitoring
+    function parseRateLimitHeaders(response) {
+      const getHeader = (name) => {
+        const value = response.headers.get(name);
+        if (value === null) return undefined;
+        const num = Number(value);
+        return isNaN(num) ? value : num;
+      };
+      return {
+        limitRequests: getHeader('x-ratelimit-limit-requests') || 14400,
+        remainingRequests: getHeader('x-ratelimit-remaining-requests'),
+        resetRequests: getHeader('x-ratelimit-reset-requests'),
+        limitTokens: getHeader('x-ratelimit-limit-tokens'),
+        remainingTokens: getHeader('x-ratelimit-remaining-tokens'),
+        retryAfter: response.status === 429 ? getHeader('retry-after') : undefined,
+      };
+    }
+
+    // Make API call with retry logic for rate limiting
+    let response;
+    let rateLimitInfo;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      response = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 150,
+          top_p: 0.9,
+        }),
+      });
+
+      rateLimitInfo = parseRateLimitHeaders(response);
+
+      // Log rate limit status for monitoring
+      if (rateLimitInfo.remainingRequests !== undefined) {
+        console.log(`[Groq] Rate limit: ${rateLimitInfo.remainingRequests}/${rateLimitInfo.limitRequests} remaining`);
+      }
+
+      if (response.ok) {
+        break; // Success, exit retry loop
+      }
+
+      if (response.status === 429) {
+        const retryAfter = rateLimitInfo.retryAfter || BASE_RETRY_DELAY * Math.pow(2, attempt);
+        console.log(`[Groq] Rate limited, retry ${attempt + 1}/${MAX_RETRIES} after ${retryAfter}ms`);
+
+        if (attempt < MAX_RETRIES - 1) {
+          // Wait before retrying with exponential backoff
+          await new Promise(resolve => setTimeout(resolve, retryAfter));
+          continue;
+        }
+      }
+
+      // Non-429 error or max retries reached
+      break;
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -239,7 +290,11 @@ Rules:
 
       // Return fallback signal for rate limiting
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate limited', fallback: true }), {
+        return new Response(JSON.stringify({
+          error: 'Rate limited',
+          fallback: true,
+          retryAfter: rateLimitInfo?.retryAfter
+        }), {
           status: 429,
           headers: { 'Content-Type': 'application/json' },
         });

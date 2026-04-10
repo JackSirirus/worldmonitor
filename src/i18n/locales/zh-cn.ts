@@ -18,6 +18,11 @@ export default {
     acledNotConfigured: 'ACLED未配置 - 仅使用GDELT',
     unknownError: '未知错误',
     search: '搜索...',
+    // AI 服务降级相关文案
+    aiServiceBusy: 'AI 服务暂时繁忙，已切换到备用模式',
+    aiServiceFallback: '正在使用备用 AI 服务',
+    aiRateLimited: 'AI 服务请求频率超限，请稍后再试',
+    aiServiceError: 'AI 服务错误，请稍后再试',
   },
   panels: {
     globalMap: '全球地图',
@@ -568,6 +573,7 @@ export default {
   chat: {
     welcome: '问我关于世界事件、新闻分析，或生成报告。',
     placeholder: '输入问题...',
+    you: '你',
   },
   reports: {
     generateTech: '生成科技报告',

@@ -4,7 +4,7 @@
  */
 
 import { useNewsStore, type NewsItem } from '@/stores/newsStore';
-import { t } from '@/i18n';
+import { t, getCurrentLocale } from '@/i18n';
 import { escapeHtml } from '@/utils/sanitize';
 
 export class UnifiedNewsPanel {
@@ -13,6 +13,7 @@ export class UnifiedNewsPanel {
   private store = useNewsStore;
   private activeCategory = 'all';
   private eventsBound = false;
+  private onLanguageChange: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -144,6 +145,24 @@ export class UnifiedNewsPanel {
     }
   }
 
+  // Helper to get display title based on current locale
+  private getDisplayTitle(item: NewsItem): string {
+    const locale = getCurrentLocale();
+    if ((locale === 'zh-cn' || locale === 'zh-tw') && item.title_zh) {
+      return item.title_zh;
+    }
+    return item.title;
+  }
+
+  // Helper to get display description based on current locale
+  private getDisplayDescription(item: NewsItem): string | null {
+    const locale = getCurrentLocale();
+    if ((locale === 'zh-cn' || locale === 'zh-tw') && item.description_zh) {
+      return item.description_zh;
+    }
+    return item.description || null;
+  }
+
   private renderNewsItems(items: NewsItem[]): string {
     // Filter by active category
     const filtered = this.activeCategory === 'all'
@@ -171,6 +190,8 @@ export class UnifiedNewsPanel {
         ? `<span class="news-category-badge">${categoryLabel}</span>`
         : '';
       const sourceName = this.getSourceName(item.source);
+      const displayTitle = this.getDisplayTitle(item);
+      const displayDesc = this.getDisplayDescription(item);
 
       return `
         <div class="news-item" data-id="${item.id}" data-url="${escapeHtml(item.url || '')}">
@@ -178,8 +199,8 @@ export class UnifiedNewsPanel {
             <span class="news-item-source">${escapeHtml(sourceName)}</span>
             ${categoryBadge}
           </div>
-          <div class="news-item-title">${escapeHtml(item.title)}</div>
-          ${item.description ? `<div class="news-item-desc">${escapeHtml(item.description.substring(0, 100))}...</div>` : ''}
+          <div class="news-item-title">${escapeHtml(displayTitle)}</div>
+          ${displayDesc ? `<div class="news-item-desc">${escapeHtml(displayDesc.substring(0, 100))}...</div>` : ''}
           <div class="news-item-meta">
             <span class="news-item-time">${date}</span>
           </div>
@@ -203,6 +224,12 @@ export class UnifiedNewsPanel {
   private bindEvents(): void {
     if (this.eventsBound) return;
     this.eventsBound = true;
+
+    // Store listener reference for proper cleanup
+    this.onLanguageChange = () => {
+      this.render();
+    };
+    document.addEventListener('languagechanged', this.onLanguageChange);
 
     // Use event delegation for tabs - delegate to parent container
     this.element.addEventListener('click', (e) => {
@@ -249,6 +276,10 @@ export class UnifiedNewsPanel {
   }
 
   public destroy(): void {
+    if (this.onLanguageChange) {
+      document.removeEventListener('languagechanged', this.onLanguageChange);
+      this.onLanguageChange = null;
+    }
     this.element.remove();
   }
 }
