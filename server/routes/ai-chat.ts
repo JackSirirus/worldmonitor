@@ -75,12 +75,21 @@ function extractKeywords(message: string): string {
   // Check if message contains Chinese characters
   const hasChinese = /[\u4e00-\u9fff]/.test(message);
 
-  const stopWords = hasChinese ? chineseStopWords : englishStopWords;
+  if (hasChinese) {
+    // For Chinese: remove stop words using string replacement
+    let keywords = cleanMessage;
+    for (const stop of chineseStopWords) {
+      keywords = keywords.replace(new RegExp(stop, 'g'), ' ');
+    }
+    keywords = keywords.replace(/\s+/g, ' ').trim();
+    // If result is too short, return original message
+    return keywords.length >= 2 ? keywords : message;
+  }
 
+  // For English: use split/filter approach
+  const stopWords = englishStopWords;
   let keywords = cleanMessage;
   for (const stop of stopWords) {
-    // Simple word replacement: replace whole word followed by space or at boundaries
-    // Using simple string split/join approach to avoid regex word boundary issues
     const parts = keywords.split(' ');
     const filtered = parts.filter(w => w.toLowerCase() !== stop.toLowerCase());
     keywords = filtered.join(' ');
@@ -93,18 +102,15 @@ function extractKeywords(message: string): string {
     return message;
   }
 
-  // For English queries, filter to keep only significant words (>= 3 chars or known important terms)
-  // This handles queries like "What are the latest AI news?" -> "ai news"
-  if (!hasChinese) {
-    const words = keywords.split(' ').filter(w => {
-      // Keep words with 3+ characters
-      if (w.length >= 3) return true;
-      // Also keep short important tech/news terms (case-insensitive)
-      const shortImportant = ['ai', 'ml', 'it', 'tv', 'uk', 'eu', 'us', 'un', 'nato'];
-      return shortImportant.includes(w.toLowerCase());
-    });
-    keywords = words.join(' ');
-  }
+  // For English queries, filter to keep only significant words (>= 2 chars or known important terms)
+  const words = keywords.split(' ').filter(w => {
+    // Keep words with 2+ characters
+    if (w.length >= 2) return true;
+    // Also keep short important tech/news/geopolitical terms (case-insensitive)
+    const shortImportant = ['ai', 'ml', 'it', 'tv', 'uk', 'eu', 'us', 'un', 'nato', 'eu', 'is', 'in', 'on', 'to', 'by', 'of', 'us', 'ir', 'il', 'uk'];
+    return shortImportant.includes(w.toLowerCase());
+  });
+  keywords = words.join(' ');
 
   // If filtered result is too short, fall back to original message
   if (keywords.length < 2) {

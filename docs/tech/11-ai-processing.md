@@ -416,3 +416,182 @@ Groq API
 | en | "AI service is temporarily busy, switched to backup mode" |
 | zh-CN | "AI 服务暂时繁忙，已切换到备用模式" |
 | zh-TW | "AI 服務暫時繁忙，已切換到備用模式" |
+
+---
+
+## 6. AI 情感分析 (Phase 3)
+
+### 6.1 功能概述
+
+AI 情感分析增强使用 Groq/LLM 对新闻标题进行更准确的情感分析，替代基于关键词的简单匹配。
+
+**启用方式：** 设置环境变量 `USE_AI_SENTIMENT=true`
+
+### 6.2 处理架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     AI 情感分析流程                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  新闻标题 ──▶ 缓存检查 ──▶ 明显判断 ──▶ AI 分析 ──▶ 结果      │
+│     │            │            │            │                     │
+│     ▼            ▼            ▼            ▼                     │
+│  输入      Redis (24h)   关键词快速判断  Groq/LLM              │
+│                          强信号直接返回                         │
+│                                                                 │
+│                    ◀── 缓存结果 (24h TTL) ──                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 分析策略
+
+1. **缓存优先**：先检查 Redis 缓存，避免重复 API 调用
+2. **快速判断**：明显正面/负面的标题直接用关键词判断，不调用 AI
+3. **AI 增强**：对于模糊的标题（分数接近 0），使用 AI 进行深入分析
+4. **结果缓存**：AI 分析结果缓存 24 小时
+
+### 6.4 关键词快速判断
+
+**强负面信号（直接返回负面）：**
+- war, invasion, attack, killed, death, casualties
+- nuclear war, world war, massacre, genocide, terrorism
+- pandemic, plague, famine
+
+**强正面信号（直接返回正面）：**
+- peace treaty, ceasefire, breakthrough
+- peace agreement, vaccine approved, cure discovered
+
+### 6.5 API 调用示例
+
+```typescript
+import { analyzeSentimentAI } from './services/sentiment-ai.js';
+
+// 单条分析
+const result = await analyzeSentimentAI("US and China reach new trade agreement");
+console.log(result);
+// { sentiment: 'positive', score: 0.75 }
+
+// 批量分析
+const results = await analyzeSentimentBatch([
+  "War tensions escalate in Middle East",
+  "Tech stocks rally on AI breakthrough",
+  "Markets remain stable"
+]);
+```
+
+### 6.6 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `USE_AI_SENTIMENT` | 启用 AI 情感分析 | `false` |
+| `UPSTASH_REDIS_REST_URL` | Redis 缓存 URL | - |
+| `UPSTASH_REDIS_REST_TOKEN` | Redis 缓存 Token | - |
+
+### 6.7 与 RSS Collector 集成
+
+RSS Collector 在收集新闻时会自动使用 AI 情感分析：
+
+```typescript
+// server/agent/rss-collector.ts
+if (USE_AI_SENTIMENT) {
+  const { analyzeSentimentAI } = await import('./services/sentiment-ai.js');
+  sentiment = await analyzeSentimentAI(item.title);
+} else {
+  sentiment = analyzeSentiment(item.title); // 关键词分析
+}
+```
+
+### 6.8 回退机制
+
+```
+AI 情感分析
+    │
+    ├─ 成功 ──▶ 返回结果 + 缓存
+    │
+    ├─ 缓存命中 ──▶ 直接返回缓存
+    │
+    ├─ 明显信号 ──▶ 关键词分析 + 缓存
+    │
+    └─ AI 失败 ──▶ 关键词分析 + 记录日志
+```
+
+---
+
+## 7. AI Chat RAG (检索增强生成)
+
+### 7.1 功能概述
+
+AI Chat RAG 为 AI 对话功能增加了新闻检索能力，使 AI 能够基于本地新闻数据库回答用户关于最新新闻的问题。
+
+**工作流程：**
+```
+用户消息 ──▶ 关键词提取 ──▶ 新闻检索 ──▶ 上下文注入 ──▶ AI 生成回答
+```
+
+### 7.2 关键词提取
+
+支持中英文关键词提取：
+
+**中文停用词：** 的、是、在、有、什么、哪些、怎么、如何、为什么、哪里、哪个、吗、呢、吧、啊
+
+**英文停用词：** what, which, who, how, why, when, where, the, a, an, is, are, was, were, latest, recent, current, new, news, about, tell, give, me, some, any
+
+**保留的短词：** ai, ml, it, tv, uk, eu, us, un, nato
+
+### 7.3 新闻检索
+
+| 参数 | 值 |
+|------|-----|
+| 搜索范围 | 过去 7 天内的新闻 |
+| 返回数量 | 最多 10 条 |
+| 搜索字段 | title, description |
+| 匹配方式 | ILIKE 模糊匹配 |
+
+### 7.4 系统提示词
+
+当有相关新闻时：
+```
+You are a helpful AI assistant specializing in news analysis.
+
+The following are the latest news items relevant to the user's question:
+1. [新闻标题1] [来源] (发布日期)
+2. [新闻标题2] [来源] (发布日期)
+...
+
+Please provide an answer based on the news items above.
+```
+
+当无相关新闻时：
+```
+You are a helpful AI assistant. When users ask about recent news or current events,
+inform them that no relevant news data is currently available in the system.
+Otherwise, answer based on your general knowledge.
+```
+
+### 7.5 API 响应
+
+```typescript
+{
+  response: string,      // AI 回答内容
+  provider: string,     // AI 提供商 (Groq/MiniMax)
+  news: [               // 检索到的新闻数组
+    {
+      id: number,
+      title: string,
+      source: string,
+      pubDate: string,
+      link: string
+    }
+  ],
+  // ... 其他 AI 响应字段
+}
+```
+
+### 7.6 相关文件
+
+- `server/routes/ai-chat.ts` - AI Chat 路由及 RAG 实现
+- `server/repositories/news.ts` - 新闻数据访问层
+- `server/services/ai-providers.ts` - AI 提供商调用
+
