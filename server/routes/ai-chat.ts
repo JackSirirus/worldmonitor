@@ -20,10 +20,25 @@ async function searchNewsForChat(query: string): Promise<NewsItem[]> {
   try {
     const fromDate = new Date(Date.now() - NEWS_SEARCH_DAYS * 24 * 60 * 60 * 1000);
 
-    const result = await getNews(
+    // First attempt: search with original query
+    let result = await getNews(
       { search: query, fromDate },
       { page: 1, limit: NEWS_SEARCH_LIMIT }
     );
+
+    // If no results and query contains Chinese characters, try extracting English keywords
+    if (result.items.length === 0 && /[\u4e00-\u9fff]/.test(query)) {
+      // Extract English words from the query for fallback search
+      const englishWords = query.match(/[a-zA-Z]+/g);
+      if (englishWords && englishWords.length > 0) {
+        // Join English words and search
+        const englishQuery = englishWords.join(' ');
+        result = await getNews(
+          { search: englishQuery, fromDate },
+          { page: 1, limit: NEWS_SEARCH_LIMIT }
+        );
+      }
+    }
 
     return result.items;
   } catch (error) {
