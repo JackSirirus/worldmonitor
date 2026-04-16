@@ -15,22 +15,26 @@ const NEWS_SEARCH_DAYS = 7;
 
 /**
  * Search for relevant news based on user query
+ * @param keywords - extracted keywords for search
+ * @param originalMessage - original user message for fallback detection
  */
-async function searchNewsForChat(query: string): Promise<NewsItem[]> {
+async function searchNewsForChat(keywords: string, originalMessage: string): Promise<NewsItem[]> {
   try {
     const fromDate = new Date(Date.now() - NEWS_SEARCH_DAYS * 24 * 60 * 60 * 1000);
 
-    // First attempt: search with original query
+    // First attempt: search with keywords
     let result = await getNews(
-      { search: query, fromDate },
+      { search: keywords, fromDate },
       { page: 1, limit: NEWS_SEARCH_LIMIT }
     );
 
-    // If no results, try fallback searches
-    if (result.items.length === 0) {
-      // If query contains Chinese characters, try extracting English keywords
-      if (/[\u4e00-\u9fff]/.test(query)) {
-        const englishWords = query.match(/[a-zA-Z]+/g);
+    // For Chinese queries, if no results or few results, try fallback searches
+    if (result.items.length < 3) {
+      const hasChinese = /[\u4e00-\u9fff]/.test(originalMessage);
+
+      if (hasChinese) {
+        // Try extracting English words first (e.g., "AI" from "有什么AI新闻")
+        const englishWords = originalMessage.match(/[a-zA-Z]+/g);
         if (englishWords && englishWords.length > 0) {
           const englishQuery = englishWords.join(' ');
           result = await getNews(
@@ -38,16 +42,30 @@ async function searchNewsForChat(query: string): Promise<NewsItem[]> {
             { page: 1, limit: NEWS_SEARCH_LIMIT }
           );
         }
+
+        // If still few results, try generic tech/news search for news-related queries
+        // Use ORIGINAL message for keyword detection (not extracted keywords)
+        if (result.items.length < 3) {
+          const newsRelatedWords = ['新闻', '资讯', '消息', '事件', '报道', '科技', '技术', '经济', '政治', '国际', '美国', '中国', '世界', '战争', '市场', '有什么', '最新', '今天'];
+          const hasNewsKeyword = newsRelatedWords.some(word => originalMessage.includes(word));
+          if (hasNewsKeyword) {
+            result = await getNews(
+              { search: 'tech', fromDate },
+              { page: 1, limit: NEWS_SEARCH_LIMIT }
+            );
+          }
+        }
       } else {
-        // For English queries, try shorter keywords (last 1-2 words)
-        const words = query.split(' ').filter(w => w.length >= 2);
-        if (words.length > 1) {
-          // Try the last word (most likely to be the topic)
-          const lastWord = words[words.length - 1];
-          result = await getNews(
-            { search: lastWord, fromDate },
-            { page: 1, limit: NEWS_SEARCH_LIMIT }
-          );
+        // For English queries, try shorter keywords if few results
+        if (result.items.length < 3) {
+          const words = keywords.split(' ').filter(w => w.length >= 2);
+          if (words.length > 1) {
+            const lastWord = words[words.length - 1];
+            result = await getNews(
+              { search: lastWord, fromDate },
+              { page: 1, limit: NEWS_SEARCH_LIMIT }
+            );
+          }
         }
       }
     }
@@ -185,7 +203,7 @@ router.post('/chat', async (req, res) => {
 
     if (userQuery.trim()) {
       const keywords = extractKeywords(userQuery);
-      relevantNews = await searchNewsForChat(keywords);
+      relevantNews = await searchNewsForChat(keywords, userQuery);
       systemPrompt = buildNewsContextPrompt(relevantNews);
     }
 
