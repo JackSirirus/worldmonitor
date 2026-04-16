@@ -26,17 +26,29 @@ async function searchNewsForChat(query: string): Promise<NewsItem[]> {
       { page: 1, limit: NEWS_SEARCH_LIMIT }
     );
 
-    // If no results and query contains Chinese characters, try extracting English keywords
-    if (result.items.length === 0 && /[\u4e00-\u9fff]/.test(query)) {
-      // Extract English words from the query for fallback search
-      const englishWords = query.match(/[a-zA-Z]+/g);
-      if (englishWords && englishWords.length > 0) {
-        // Join English words and search
-        const englishQuery = englishWords.join(' ');
-        result = await getNews(
-          { search: englishQuery, fromDate },
-          { page: 1, limit: NEWS_SEARCH_LIMIT }
-        );
+    // If no results, try fallback searches
+    if (result.items.length === 0) {
+      // If query contains Chinese characters, try extracting English keywords
+      if (/[\u4e00-\u9fff]/.test(query)) {
+        const englishWords = query.match(/[a-zA-Z]+/g);
+        if (englishWords && englishWords.length > 0) {
+          const englishQuery = englishWords.join(' ');
+          result = await getNews(
+            { search: englishQuery, fromDate },
+            { page: 1, limit: NEWS_SEARCH_LIMIT }
+          );
+        }
+      } else {
+        // For English queries, try shorter keywords (last 1-2 words)
+        const words = query.split(' ').filter(w => w.length >= 2);
+        if (words.length > 1) {
+          // Try the last word (most likely to be the topic)
+          const lastWord = words[words.length - 1];
+          result = await getNews(
+            { search: lastWord, fromDate },
+            { page: 1, limit: NEWS_SEARCH_LIMIT }
+          );
+        }
       }
     }
 
