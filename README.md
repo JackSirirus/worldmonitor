@@ -4,19 +4,19 @@
 **Real-time global intelligence dashboard** — AI-powered news aggregation, geopolitical monitoring, and infrastructure tracking in a unified situational awareness interface.
 **实时全球情报仪表板** — 人工智能驱动的新闻聚合、地缘政治监控和基础设施追踪，集成于统一态势感知界面。
 
-[![GitHub stars](https://img.shields.io/github/stars/koala73/worldmonitor?style=social)](https://github.com/koala73/worldmonitor/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/koala73/worldmonitor?style=social)](https://github.com/koala73/worldmonitor/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/JackSirirus/worldmonitor?style=social)](https://github.com/JackSirirus/worldmonitor/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/JackSirirus/worldmonitor?style=social)](https://github.com/JackSirirus/worldmonitor/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Last commit](https://img.shields.io/github/last-commit/koala73/worldmonitor)](https://github.com/koala73/worldmonitor/commits/main)
+[![Last commit](https://img.shields.io/github/last-commit/JackSirirus/worldmonitor)](https://github.com/JackSirirus/worldmonitor/commits/main)
 
 <p align="center">
   <a href="https://worldmonitor.app"><strong>Live Demo</strong></a> &nbsp;·&nbsp;
   <a href="https://worldmonitor.app"><strong>在线演示</strong></a> &nbsp;·&nbsp;
   <a href="https://tech.worldmonitor.app"><strong>Tech Variant</strong></a> &nbsp;·&nbsp;
   <a href="https://tech.worldmonitor.app"><strong>Tech 版本</strong></a> &nbsp;·&nbsp;
-  <a href="./docs/DOCUMENTATION.md"><strong>Full Documentation</strong></a>
-  <a href="./docs/DOCUMENTATION.md"><strong>完整文档</strong></a>
+  <a href="./docs/tech/00-index.md"><strong>Full Documentation</strong></a>
+  <a href="./docs/tech/00-index.md"><strong>完整文档</strong></a>
 </p>
 
 ![World Monitor Dashboard](new-world-monitor.png)
@@ -777,6 +777,76 @@ Database tables required (auto-created on server start):
 
 ---
 
+### MCP Server
+### MCP 服务器
+
+World Monitor includes an MCP (Model Context Protocol) server for AI tool integration:
+World Monitor 包含一个 MCP（Model Context Protocol）服务器，用于 AI 工具集成：
+
+| Tool | File | Description |
+|------|------|-------------|
+| **News Tools** | `server/mcp/tools/news-tools.ts` | Search, browse, and analyze news articles |
+| **Analysis Tools** | `server/mcp/tools/analysis-tools.ts` | Geopolitical analysis and threat assessment |
+| **Report Tools** | `server/mcp/tools/report-tools.ts` | Generate and manage intelligence reports |
+
+```typescript
+// MCP server entry point
+import { createMCPServer } from './mcp/index.js';
+
+// Initialize MCP server with AI tools
+const server = createMCPServer({
+  newsTools: true,
+  analysisTools: true,
+  reportTools: true,
+});
+```
+
+---
+
+### Sentiment AI
+### 情感 AI
+
+The sentiment analysis service (`server/services/sentiment-ai.ts`) provides real-time sentiment scoring for news articles:
+情感分析服务（`server/services/sentiment-ai.ts`）为新闻文章提供实时情感评分：
+
+- **Multi-source sentiment analysis** — Combines multiple signals for accurate sentiment detection
+- **多源情感分析** — 结合多个信号进行准确的情感检测
+- **Real-time scoring** — Sentiment scores updated as new articles arrive
+- **实时评分** — 新文章到达时更新情感分数
+- **Integrated with AI Chat RAG** — Sentiment context included in AI responses
+- **与 AI Chat RAG 集成** — AI 响应中包含情感上下文
+
+---
+
+### OpenSpec Change Workflow
+### OpenSpec 变更工作流
+
+World Monitor uses OpenSpec for structured feature development:
+World Monitor 使用 OpenSpec 进行结构化功能开发：
+
+| Artifact | Location | Purpose |
+|----------|----------|---------|
+| **Proposal** | `openspec/changes/<name>/proposal.md` | Feature requirements and goals |
+| **Design** | `openspec/changes/<name>/design.md` | Technical design and architecture |
+| **Spec** | `openspec/changes/<name>/specs/<spec>/spec.md` | Detailed specifications |
+| **Tasks** | `openspec/changes/<name>/tasks.md` | Implementation tasks |
+
+```bash
+# Start a new change
+opsx new <change-name>
+
+# Continue working on a change
+opsx continue
+
+# Verify implementation matches specs
+opsx verify
+
+# Archive completed change
+opsx archive
+```
+
+---
+
 ## Source Credibility & Feed Tiering
 ## 来源可信度与订阅分层
 
@@ -885,6 +955,29 @@ docker-compose up --build
 
 # 4. Access at http://localhost:3001
 ```
+
+### Docker Services
+### Docker 服务
+
+Docker Compose starts 4 services:
+
+| Container | Image | Purpose |
+|-----------|-------|---------|
+| `worldmonitor-postgres` | postgres:16-alpine | PostgreSQL 16 for RSS cache and Agent data |
+| `worldmonitor-redis` | redis:7-alpine | Redis for Bull queue and local caching |
+| `worldmonitor` | worldmonitor (built) | Main application server |
+| `worldmonitor-nginx` | nginx:alpine | Reverse proxy for static files |
+
+**Redis** is used for:
+- Bull job queue (async task processing)
+- Local caching with LRU eviction (256MB maxmemory)
+- Session storage
+
+**PostgreSQL** is used for:
+- RSS items cache
+- Generated reports
+- Agent task history
+- Podcasts metadata
 
 ### Manual Docker Run
 ### 手动 Docker 运行
@@ -1067,8 +1160,8 @@ www.ft.com, www.defenseone.com, breakingdefense.com,
 thediplomat.com, arxiv.org, export.arxiv.org, ...
 ```
 
-Full list in: `server/routes/rss-proxy.ts`
-完整列表见: `server/routes/rss-proxy.ts`
+Full list in: `api/rss-proxy.js`
+完整列表见: `api/rss-proxy.js`
 
 #### Complete Source List by Category
 #### 完整源列表（按类别）
@@ -1199,7 +1292,7 @@ Full list in: `server/routes/rss-proxy.ts`
 2. **Deploy**
    ```bash
    # Clone repository
-   git clone https://github.com/koala73/worldmonitor.git
+   git clone https://github.com/JackSirirus/worldmonitor.git
    cd worldmonitor
 
    # Copy and configure environment
