@@ -68,7 +68,7 @@ export async function getNews(
   }
 
   if (filters.search) {
-    conditions.push(`(title ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`);
+    conditions.push(`(title ILIKE $${paramIndex} OR description ILIKE $${paramIndex} OR title_zh ILIKE $${paramIndex} OR description_zh ILIKE $${paramIndex})`);
     params.push(`%${filters.search}%`);
     paramIndex++;
   }

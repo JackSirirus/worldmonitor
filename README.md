@@ -805,6 +805,8 @@ World Monitor 使用 45+ 个 Vercel 边缘函数作为轻量级 API 层。每个
 - **RSS 代理** — 100+ 订阅源的域名白名单代理，防止 CORS 问题并隐藏源服务器。阻止 Vercel IP 的域名订阅源自动通过 Railway 中继路由。
 - **AI Pipeline** — Groq and OpenRouter edge functions with Redis deduplication, so identical headlines across concurrent users only trigger one LLM call. The classify-event endpoint pauses its queue on 500 errors to avoid wasting API quota.
 - **AI 流水线** — Groq 和 OpenRouter 边缘函数带 Redis 去重，因此并发用户看到相同标题时只触发一次 LLM 调用。classify-event 端点在 500 错误时暂停队列以避免浪费 API 配额。
+- **AI Chat RAG** — AI chat endpoint retrieves relevant news from the past 7 days as context, enabling AI to answer questions about current events using local news data.
+- **AI Chat RAG** — AI 聊天端点检索过去 7 天的相关新闻作为上下文，使 AI 能够使用本地新闻数据回答时事问题。
 - **Data Adapters** — GDELT, ACLED, OpenSky, USGS, NASA FIRMS, FRED, Yahoo Finance, CoinGecko, mempool.space, and others each have dedicated edge functions that normalize responses into consistent schemas
 - **数据适配器** — GDELT、ACLED、OpenSky、USGS、NASA FIRMS、FRED、Yahoo Finance、CoinGecko、mempool.space 等各有专用边缘函数，将响应规范化为一致的 schema
 - **Market Intelligence** — macro signals, ETF flows, and stablecoin monitors compute derived analytics server-side (VWAP, SMA, peg deviation, flow estimates) and cache results in Redis
@@ -977,7 +979,7 @@ WorldMonitor includes automated Agent services for news analysis and reporting.
 | `/api/cache/news` | GET | Get cached news (with category filter) |
 | `/api/cache/sources` | GET | Get RSS source status |
 | `/api/cache/stats` | GET | Get cache statistics |
-| `/api/ai/chat` | POST | AI chat with auto-failover |
+| `/api/ai/chat` | POST | AI chat with auto-failover and news RAG context |
 | `/api/ai/providers` | GET | Get AI provider status |
 | `/api/reports` | GET | List generated reports |
 | `/api/reports/:id` | GET | Get report (Markdown) |

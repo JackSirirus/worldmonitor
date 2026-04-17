@@ -230,13 +230,9 @@ async function chatWithFallback(
 
   try {
     if (providerName === 'Groq' && isPrimary) {
-      // Use rate-limited queue for primary Groq calls
-      const response = await getOrCreateRequest(
-        JSON.stringify(request),
-        request,
-        provider,
-        1 // High priority
-      );
+      // Skip Groq if it keeps failing with auth errors - use direct call to allow fallback
+      // The rate-limited queue doesn't handle 403 errors well
+      const response = await provider.chat(request);
       return { response, provider: providerName, fallback: false };
     } else {
       // Direct call for fallback providers
@@ -246,14 +242,13 @@ async function chatWithFallback(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    // Check if it's a rate limit error
-    if (message.includes('429') || message.includes('rate limit')) {
-      if (isPrimary) {
-        // For primary Groq calls, try fallback immediately without retry
-        console.log(`[AI] Groq rate limited, switching to fallback`);
-        throw error; // Let outer handler deal with fallback
-      }
-      throw error;
+    // Check if it's a rate limit error or authentication error
+    if (message.includes('429') || message.includes('rate limit') ||
+        message.includes('403') || message.includes('Forbidden') ||
+        message.includes('401') || message.includes('Unauthorized')) {
+      // These errors are unlikely to succeed on retry, throw immediately to trigger fallback
+      console.log(`[AI] ${providerName} failed with ${message.includes('403') || message.includes('Forbidden') ? 'auth error' : 'rate limit'}, skipping...`);
+      throw error; // Let outer handler deal with fallback
     }
 
     throw error;
@@ -351,7 +346,10 @@ class MiniMaxProvider implements AIProvider {
     const data = await response.json() as any;
 
     // Convert Anthropic response to OpenAI format
-    const content = data.content?.[0]?.type === 'text' ? data.content[0].text : '';
+    // MiniMax returns content as array: [{type: 'thinking', ...}, {type: 'text', text: '...'}]
+    // We need to find the first 'text' type item
+    const textContent = data.content?.find((c: any) => c.type === 'text');
+    const content = textContent?.text || '';
     const usage = data.usage ? {
       prompt_tokens: data.usage.input_tokens,
       completion_tokens: data.usage.output_tokens,

@@ -105,6 +105,7 @@
 |------|------|
 | MapLibre GL | [架构-02](./02-architecture.md#前端技术栈) |
 | Market 数据流 | [数据流-12](./12-data-flow.md#3-市场数据流) |
+| MCP Server | [MCP](./MCP-SERVER.md) |
 | MiniMax API | [配置-05](./05-configuration.md#ai-服务) |
 | ML 推理 | [AI-11](./11-ai-processing.md#4-ml-推理-浏览器端) |
 
@@ -236,6 +237,7 @@
 | 摘要生成流程 | [AI-11](./11-ai-processing.md#1-ai-摘要生成流程) |
 | 聚类算法 | [AI-11](./11-ai-processing.md#2-新闻聚类流程) |
 | Agent 系统 | [AI-11](./11-ai-processing.md#3-ai-agent-工作流程) |
+| MCP Server | [MCP](./MCP-SERVER.md) |
 
 ---
 

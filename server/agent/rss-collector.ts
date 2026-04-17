@@ -11,6 +11,9 @@ import { analyzeSentiment } from '../services/sentiment-analysis.js';
 import { getSourceTier } from '../config/source-tiers.js';
 import { translateNewsBatch, ensureTranslationTable } from '../services/translation.js';
 
+// Check if AI sentiment is enabled
+const USE_AI_SENTIMENT = process.env.USE_AI_SENTIMENT === 'true';
+
 // RSS Parser instance
 const parser = new Parser({
   timeout: 10000,
@@ -283,8 +286,20 @@ export async function fetchRSSSources(
           try {
             // Classify using keyword matching (no AI API needed)
             const threat = classifyByKeyword(item.title);
-            // Analyze sentiment using keyword matching
-            const sentiment = analyzeSentiment(item.title);
+
+            // Analyze sentiment - use AI if enabled
+            let sentiment;
+            if (USE_AI_SENTIMENT) {
+              try {
+                const { analyzeSentimentAI } = await import('../services/sentiment-ai.js');
+                sentiment = await analyzeSentimentAI(item.title);
+              } catch (aiError) {
+                // Fallback to keyword on AI failure
+                sentiment = analyzeSentiment(item.title);
+              }
+            } else {
+              sentiment = analyzeSentiment(item.title);
+            }
 
             await query(`
               INSERT INTO rss_items (source_url, title, link, description, pub_date, category, threat_level, threat_category, sentiment_score, sentiment_label)
