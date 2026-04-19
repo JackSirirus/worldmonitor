@@ -474,7 +474,14 @@ async function generateCategoryReport(
 /**
  * Generate daily summary report (all categories)
  */
-export async function generateDailySummary(lang: Language = 'zh'): Promise<Report[]> {
+export async function generateDailySummary(lang?: Language): Promise<Report[]>;
+export async function generateDailySummary(lang: Language, bilingual: true): Promise<{ zh: Report[]; en: Report[] }>;
+export async function generateDailySummary(lang?: Language | boolean, bilingual?: boolean): Promise<Report[] | { zh: Report[]; en: Report[] }> {
+  // If called with bilingual=true, generate both languages
+  if (lang === true || bilingual === true) {
+    return generateDailySummaryBilingual();
+  }
+
   const sessionId = `report-daily-${Date.now()}`;
   info(sessionId, sessionId, 'Starting daily report generation');
 
@@ -482,8 +489,8 @@ export async function generateDailySummary(lang: Language = 'zh'): Promise<Repor
 
   // Generate tech and world reports in parallel
   const [techReport, worldReport] = await Promise.all([
-    generateCategoryReport('tech', sessionId, lang),
-    generateCategoryReport('world', sessionId, lang),
+    generateCategoryReport('tech', sessionId, (lang as Language) || 'zh'),
+    generateCategoryReport('world', sessionId, (lang as Language) || 'zh'),
   ]);
 
   if (techReport) reports.push(techReport);
@@ -491,6 +498,33 @@ export async function generateDailySummary(lang: Language = 'zh'): Promise<Repor
 
   info(sessionId, sessionId, `Daily reports generated: ${reports.length}`);
   return reports;
+}
+
+/**
+ * Generate daily reports in both Chinese and English
+ */
+async function generateDailySummaryBilingual(): Promise<{ zh: Report[]; en: Report[] }> {
+  const sessionId = `report-daily-bilingual-${Date.now()}`;
+  info(sessionId, sessionId, 'Starting daily report generation (bilingual)');
+
+  // Generate all reports in parallel
+  const [zhTech, zhWorld, enTech, enWorld] = await Promise.all([
+    generateCategoryReport('tech', sessionId, 'zh'),
+    generateCategoryReport('world', sessionId, 'zh'),
+    generateCategoryReport('tech', sessionId, 'en'),
+    generateCategoryReport('world', sessionId, 'en'),
+  ]);
+
+  const zhReports: Report[] = [];
+  const enReports: Report[] = [];
+
+  if (zhTech) zhReports.push(zhTech);
+  if (zhWorld) zhReports.push(zhWorld);
+  if (enTech) enReports.push(enTech);
+  if (enWorld) enReports.push(enWorld);
+
+  info(sessionId, sessionId, `Daily reports generated: zh=${zhReports.length}, en=${enReports.length}`);
+  return { zh: zhReports, en: enReports };
 }
 
 /**
@@ -507,6 +541,21 @@ export async function generateWeeklyTrend(lang: Language = 'zh'): Promise<Report
   }
 
   return report;
+}
+
+/**
+ * Generate weekly trend in both languages
+ */
+export async function generateWeeklyTrendBilingual(): Promise<{ zh: Report | null; en: Report | null }> {
+  const sessionId = `report-weekly-bilingual-${Date.now()}`;
+  info(sessionId, sessionId, 'Starting weekly trend analysis (bilingual)');
+
+  const [zhReport, enReport] = await Promise.all([
+    generateCategoryReport('weekly', sessionId, 'zh'),
+    generateCategoryReport('weekly', sessionId, 'en'),
+  ]);
+
+  return { zh: zhReport, en: enReport };
 }
 
 /**
@@ -533,6 +582,7 @@ export async function getRecentReports(limit: number = 10): Promise<Report[]> {
 export default {
   generateDailySummary,
   generateWeeklyTrend,
+  generateWeeklyTrendBilingual,
   generateReport,
   getRecentReports,
   CATEGORY_MAPPINGS,

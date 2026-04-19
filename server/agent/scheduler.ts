@@ -105,20 +105,19 @@ async function runRSSCollector(): Promise<void> {
 }
 
 /**
- * Run daily summary task
+ * Run daily summary task (bilingual - zh + en)
  */
 async function runDailySummary(): Promise<void> {
-  // Import and run summary generation
   const { generateDailySummary } = await import('./report-generator.js');
-  await generateDailySummary();
+  await generateDailySummary('zh', true); // bilingual
 }
 
 /**
- * Run weekly trend analysis task
+ * Run weekly trend analysis task (bilingual - zh + en)
  */
 async function runWeeklyTrendAnalysis(): Promise<void> {
-  const { generateWeeklyTrend } = await import('./report-generator.js');
-  await generateWeeklyTrend();
+  const { generateWeeklyTrendBilingual } = await import('./report-generator.js');
+  await generateWeeklyTrendBilingual();
 }
 
 /**

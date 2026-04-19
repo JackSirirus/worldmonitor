@@ -103,22 +103,51 @@ router.get('/:id', async (req, res) => {
 
 /**
  * POST /api/reports/generate
- * Trigger report generation manually
+ * Trigger report generation (supports bilingual generation)
  */
 router.post('/generate', async (req, res) => {
   try {
-    const { type } = req.body;
+    const { type, bilingual } = req.body;
     const reportType = type === 'weekly' ? 'weekly-trend' : 'daily-summary';
 
-    logger.info({ type: reportType }, '[Reports API] Triggering report generation');
+    logger.info({ type: reportType, bilingual }, '[Reports API] Triggering report generation');
 
-    // Run the task
-    await triggerTask(reportType);
+    if (bilingual) {
+      // Generate bilingual reports directly via overload
+      const { generateDailySummary, generateWeeklyTrendBilingual } = await import('../agent/report-generator.js');
 
-    res.json({
-      success: true,
-      message: `${reportType} report generation triggered`,
-    });
+      if (reportType === 'weekly-trend') {
+        const result = await generateWeeklyTrendBilingual();
+        res.json({
+          success: true,
+          bilingual: true,
+          message: 'Weekly trend report generation triggered (bilingual)',
+          reports: {
+            zh: result.zh ? { id: result.zh.id, title: result.zh.title } : null,
+            en: result.en ? { id: result.en.id, title: result.en.title } : null,
+          },
+        });
+      } else {
+        // Use overload to get bilingual result
+        const result = await generateDailySummary('zh', true) as { zh: any[]; en: any[] };
+        res.json({
+          success: true,
+          bilingual: true,
+          message: 'Daily report generation triggered (bilingual)',
+          reports: {
+            zh: result.zh.map((r: any) => ({ id: r.id, title: r.title, category: r.category })),
+            en: result.en.map((r: any) => ({ id: r.id, title: r.title, category: r.category })),
+          },
+        });
+      }
+    } else {
+      // Run the scheduled task
+      await triggerTask(reportType);
+      res.json({
+        success: true,
+        message: `${reportType} report generation triggered`,
+      });
+    }
   } catch (error) {
     logger.error({ err: error }, '[Reports API] Error generating report');
     res.status(500).json({
@@ -132,10 +161,12 @@ router.post('/generate', async (req, res) => {
  * POST /api/reports/generate/:category
  * Generate a specific category report
  * Categories: tech, world, daily, weekly
+ * Query param: lang=zh|en (default: zh)
  */
 router.post('/generate/:category', async (req, res) => {
   try {
     const { category } = req.params;
+    const lang = (req.query.lang as string) || 'zh';
 
     const validCategories = ['tech', 'world', 'daily', 'weekly'];
     if (!validCategories.includes(category)) {
@@ -145,10 +176,17 @@ router.post('/generate/:category', async (req, res) => {
       });
     }
 
-    logger.info({ category }, '[Reports API] Generating category report');
+    if (lang !== 'zh' && lang !== 'en') {
+      return res.status(400).json({
+        error: 'Invalid language',
+        validLanguages: ['zh', 'en'],
+      });
+    }
+
+    logger.info({ category, lang }, '[Reports API] Generating category report');
 
     const { generateReport } = await import('../agent/report-generator.js');
-    const report = await generateReport(category as any);
+    const report = await generateReport(category as any, lang as any);
 
     if (report) {
       res.json({
