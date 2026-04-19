@@ -1,6 +1,7 @@
 /**
  * Report Generator
  * Generates Markdown reports from news data with category support
+ * Enhanced with structured prompts, deduplication, and multi-language support
  */
 
 import { query } from '../database/connection.js';
@@ -21,65 +22,312 @@ export interface Report {
 
 export type ReportCategory = 'tech' | 'world' | 'daily' | 'weekly';
 
-// Category to RSS category mapping
+// ============================================================================
+// Language Configuration
+// ============================================================================
+
+export type Language = 'zh' | 'en';
+
+export const LANGUAGE_CONFIG: Record<Language, {
+  respondIn: string;
+  dateFormat: string;
+}> = {
+  zh: {
+    respondIn: '中文',
+    dateFormat: 'YYYY年MM月DD日',
+  },
+  en: {
+    respondIn: 'English',
+    dateFormat: 'YYYY-MM-DD',
+  },
+};
+
+// ============================================================================
+// Headline Preprocessing - Deduplication & Sampling
+// ============================================================================
+
+/**
+ * Compute Jaccard similarity between two headlines (n-gram based)
+ */
+function jaccardSimilarity(a: string, b: string): number {
+  const normalize = (s: string) => s.toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2);
+
+  const setA = new Set(normalize(a));
+  const setB = new Set(normalize(b));
+
+  const intersection = new Set(Array.from(setA).filter(x => setB.has(x)));
+  const union = new Set([...Array.from(setA), ...Array.from(setB)]);
+
+  if (union.size === 0) return 0;
+  return intersection.size / union.size;
+}
+
+/**
+ * Deduplicate headlines by Jaccard similarity threshold
+ */
+function deduplicateHeadlines(
+  headlines: Array<{ title: string; pub_date: Date }>,
+  similarityThreshold: number = 0.6
+): Array<{ title: string; pub_date: Date }> {
+  const result: Array<{ title: string; pub_date: Date }> = [];
+
+  for (const headline of headlines) {
+    const isDuplicate = result.some(existing =>
+      jaccardSimilarity(existing.title, headline.title) >= similarityThreshold
+    );
+
+    if (!isDuplicate) {
+      result.push(headline);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Sample headlines by recency with max limit
+ * Prioritizes recent headlines but ensures some coverage from the full window
+ */
+function sampleByRecency(
+  headlines: Array<{ title: string; pub_date: Date }>,
+  maxItems: number = 80
+): Array<{ title: string; pub_date: Date }> {
+  if (headlines.length <= maxItems) {
+    return headlines;
+  }
+
+  // Split into recent (6h) and older buckets
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+
+  const recent = headlines.filter(h => h.pub_date >= sixHoursAgo);
+  const mid = headlines.filter(h => h.pub_date >= twelveHoursAgo && h.pub_date < sixHoursAgo);
+  const older = headlines.filter(h => h.pub_date < twelveHoursAgo);
+
+  const result: Array<{ title: string; pub_date: Date }> = [];
+
+  // Include all recent headlines (most valuable)
+  const recentLimit = Math.min(maxItems * 0.5, recent.length);
+  result.push(...recent.slice(0, recentLimit));
+
+  // Fill remaining slots from mid and older buckets
+  const remaining = maxItems - result.length;
+  if (remaining > 0 && mid.length > 0) {
+    const midSample = Math.min(remaining * 0.3, mid.length);
+    result.push(...mid.slice(0, midSample));
+  }
+
+  const stillRemaining = maxItems - result.length;
+  if (stillRemaining > 0 && older.length > 0) {
+    result.push(...older.slice(0, stillRemaining));
+  }
+
+  return result;
+}
+
+// ============================================================================
+// Report Prompts - Structured with Anti-hallucination Constraints
+// ============================================================================
+
+type PromptConfig = {
+  title: (date: string, lang: Language) => string;
+  prompt: (headlines: string, lang: Language) => string;
+};
+
+const REPORT_PROMPTS: Record<ReportCategory, PromptConfig> = {
+  tech: {
+    title: (date: string, lang: Language) =>
+      lang === 'zh' ? `科技每日简报 - ${date}` : `Tech Daily Brief - ${date}`,
+
+    prompt: (headlines: string, lang: Language) => `
+# Role
+You are a senior tech news analyst who excels at extracting core insights from fragmented information.
+
+# Input Format
+You will receive a list of tech news headlines from the past 24 hours, each formatted as "- headline text".
+"""
+${headlines}
+"""
+
+# Constraints
+- Do NOT translate headlines line by line — aggregate related headlines into 3-5 core themes
+- Do NOT fabricate facts not present in the headlines
+- If information is insufficient for a theme, acknowledge it objectively
+- Respond in ${lang === 'zh' ? 'Chinese (中文)' : 'English'}
+- Maximum 5 key themes, each with 2-3 bullet points
+
+# Output Format (MUST follow)
+## [Theme Name 1]
+**Key Points:**
+- [Point 1 from headlines]
+- [Point 2 from headlines]
+
+## [Theme Name 2]
+**Key Points:**
+- [Point 1]
+- [Point 2]
+
+## [Theme Name 3]
+...
+
+## [Trend Insight]
+A brief 2-sentence summary of the overall tech landscape today.`,
+  },
+
+  world: {
+    title: (date: string, lang: Language) =>
+      lang === 'zh' ? `全球每日简报 - ${date}` : `World Daily Brief - ${date}`,
+
+    prompt: (headlines: string, lang: Language) => `
+# Role
+You are a geopolitical news analyst specializing in international relations and security.
+
+# Input Format
+You will receive a list of world news headlines from the past 24 hours, each formatted as "- headline text".
+"""
+${headlines}
+"""
+
+# Constraints
+- Do NOT translate headlines line by line — aggregate related headlines into 3-5 core themes
+- Focus on: geopolitical events, conflicts, diplomacy, defense, economy, humanitarian issues
+- Do NOT fabricate facts not present in the headlines
+- If information is insufficient for a theme, acknowledge it objectively
+- Respond in ${lang === 'zh' ? 'Chinese (中文)' : 'English'}
+- Maximum 5 key themes, each with 2-3 bullet points
+
+# Output Format (MUST follow)
+## [Theme Name 1]
+**Key Points:**
+- [Point 1 from headlines]
+- [Point 2 from headlines]
+
+## [Theme Name 2]
+**Key Points:**
+- [Point 1]
+- [Point 2]
+
+## [Trend Insight]
+A brief 2-sentence summary of the overall geopolitical situation today.`,
+  },
+
+  daily: {
+    title: (date: string, lang: Language) =>
+      lang === 'zh' ? `每日新闻摘要 - ${date}` : `Daily News Summary - ${date}`,
+
+    prompt: (headlines: string, lang: Language) => `
+# Role
+You are a news analyst who provides clear, concise summaries of daily news.
+
+# Input Format
+You will receive a list of news headlines from the past 24 hours, each formatted as "- headline text".
+"""
+${headlines}
+"""
+
+# Constraints
+- Do NOT translate headlines line by line — identify 3-5 most important stories
+- Do NOT fabricate facts not present in the headlines
+- Focus on stories with widest impact and clearest significance
+- Respond in ${lang === 'zh' ? 'Chinese (中文)' : 'English'}
+
+# Output Format (MUST follow)
+## [Story 1: Brief Descriptive Title]
+**Summary:** 2-3 sentences capturing the key development
+
+## [Story 2: Brief Descriptive Title]
+**Summary:** 2-3 sentences capturing the key development
+
+## [Story 3: Brief Descriptive Title]
+**Summary:** 2-3 sentences capturing the key development`,
+  },
+
+  weekly: {
+    title: (date: string, lang: Language) =>
+      lang === 'zh' ? `每周趋势观察 - ${date}` : `Weekly Trend Analysis - ${date}`,
+
+    prompt: (headlines: string, lang: Language) => `
+# Role
+You are a trend forecasting expert specializing in cross-week news analysis.
+
+# Input Format
+You will receive a list of news headlines from the past week, each formatted as "- headline text".
+"""
+${headlines}
+"""
+
+# Analysis Objectives
+Identify and analyze:
+1. **Core Trends (3 major themes)**: The 3 most impactful stories with sustained relevance
+2. **Notable Shifts**: Topics that have significantly gained or lost attention vs. previous week
+3. **Risk/Opportunity Signals**: Potential developments that may impact the week ahead
+
+# Constraints
+- Do NOT fabricate facts not present in the headlines
+- If multiple headlines refer to the same event, consolidate them into a single point
+- Respond in ${lang === 'zh' ? 'Chinese (中文)' : 'English'}
+
+# Output Format (MUST follow)
+## Major Trend 1: [Theme Name]
+- [Key point with evidence from headlines]
+- [Related development]
+- [Potential impact]
+
+## Major Trend 2: [Theme Name]
+- [Key point]
+- [Related development]
+
+## Notable Shifts
+### Gaining Attention
+- [Topic + reason based on headlines]
+
+### Losing Attention
+- [Topic + reason based on headlines]
+
+## Forward Looking
+[A 2-sentence assessment of potential developments next week based on current trends]`,
+  },
+};
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+// Data sufficiency threshold
+const MIN_ITEMS_THRESHOLD = 50;
+
+// Max headlines before dedup (to prevent token overflow)
+const MAX_HEADLINES_BEFORE_DEDUP = 150;
+
+// Deduplication similarity threshold (Jaccard)
+const DEDUP_SIMILARITY_THRESHOLD = 0.6;
+
+// Max headlines after dedup (sent to AI)
+const MAX_HEADLINES_TO_AI = 80;
+
+// ============================================================================
+// Category Mapping
+// ============================================================================
+
 const CATEGORY_MAPPINGS: Record<string, string[]> = {
   tech: ['tech', 'cyber', 'ai', 'science'],
   world: ['defense', 'intl', 'economic', 'political', 'research', 'osint'],
 };
 
-// Report prompts configuration
-const REPORT_PROMPTS: Record<ReportCategory, {
-  title: (date: string) => string;
-  prompt: (headlines: string) => string;
-}> = {
-  tech: {
-    title: (date: string) => `Tech Daily Brief - ${date}`,
-    prompt: (headlines: string) => `You are a tech news analyst. Provide a comprehensive summary of the following tech news headlines from the last 24 hours. Focus on:
-1. Major technology companies and product announcements
-2. AI and machine learning developments
-3. Cybersecurity threats and incidents
-4. Scientific breakthroughs
-5. Emerging technologies
-
-Keep it concise (3-5 paragraphs) and use professional tone.`,
-  },
-  world: {
-    title: (date: string) => `World Daily Brief - ${date}`,
-    prompt: (headlines: string) => `You are a geopolitical news analyst. Provide a comprehensive summary of the following world news headlines from the last 24 hours. Focus on:
-1. Geopolitical events and conflicts
-2. International relations and diplomacy
-3. Defense and security developments
-4. Economic and trade news
-5. Humanitarian crises
-
-Keep it concise (3-5 paragraphs) and use professional tone.`,
-  },
-  daily: {
-    title: (date: string) => `Daily Summary - ${date}`,
-    prompt: (headlines: string) => `You are a news analyst. Provide a brief summary of the following news headlines from the last 24 hours. Focus on the most important stories and trends. Keep it concise (3-5 paragraphs).`,
-  },
-  weekly: {
-    title: (date: string) => `Weekly Trend Analysis - ${date}`,
-    prompt: (headlines: string) => `You are a news analyst. Analyze the following news headlines from the past week. Identify:
-1. Major trends and themes
-2. Emerging stories
-3. Topics that received significant coverage
-4. Any notable shifts from previous weeks
-
-Provide a comprehensive weekly trend report.`,
-  },
-};
-
-// Data sufficiency threshold
-const MIN_ITEMS_THRESHOLD = 50;
+// ============================================================================
+// Data Retrieval
+// ============================================================================
 
 /**
- * Get items by category
+ * Get items by category (now includes pub_date for recency sampling)
  */
 async function getItemsByCategory(
   category: ReportCategory,
   hours: number = 24,
-  limit: number = 100
+  limit: number = MAX_HEADLINES_BEFORE_DEDUP
 ): Promise<Array<{ title: string; source_url: string; pub_date: Date; category: string | null }>> {
   const mappedCategories = CATEGORY_MAPPINGS[category];
 
@@ -151,15 +399,20 @@ async function supplementWithSearch(
   }
 }
 
+// ============================================================================
+// Report Generation
+// ============================================================================
+
 /**
- * Generate category-specific report
+ * Generate category-specific report with enhanced preprocessing
  */
 async function generateCategoryReport(
   category: ReportCategory,
-  sessionId: string
+  sessionId: string,
+  lang: Language = 'zh'
 ): Promise<Report | null> {
   const hours = category === 'weekly' ? 168 : 24; // 7 days for weekly
-  const items = await getItemsByCategory(category, hours);
+  let items = await getItemsByCategory(category, hours);
 
   if (items.length === 0) {
     warn(sessionId, sessionId, `No items found for category: ${category}`);
@@ -174,17 +427,27 @@ async function generateCategoryReport(
     // Re-fetch after supplementation
     const newItems = await getItemsByCategory(category, hours);
     if (newItems.length < items.length / 2) {
-      // Still not enough, proceed with what we have but log
       warn(sessionId, sessionId, `Proceeding with limited data: ${newItems.length} items`);
     }
+    items = newItems;
   }
 
-  const headlines = items.map(i => `- ${i.title}`).join('\n');
+  // Step 1: Deduplicate by Jaccard similarity
+  const deduplicated = deduplicateHeadlines(items, DEDUP_SIMILARITY_THRESHOLD);
+  info(sessionId, sessionId, `Deduplicated ${items.length} -> ${deduplicated.length} headlines`);
+
+  // Step 2: Sample by recency with max limit
+  const sampled = sampleByRecency(deduplicated, MAX_HEADLINES_TO_AI);
+  info(sessionId, sessionId, `Sampled ${deduplicated.length} -> ${sampled.length} headlines for AI`);
+
+  // Build headlines string with delimiter for prompt injection prevention
+  const headlines = sampled.map(i => `  - ${i.title}`).join('\n');
   const config = REPORT_PROMPTS[category];
   const date = new Date().toISOString().split('T')[0];
 
-  const summary = await simpleChat(config.prompt(headlines), headlines, {
-    temperature: 0.5,
+  // Generate report with structured prompt
+  const summary = await simpleChat(config.prompt(headlines, lang), headlines, {
+    temperature: 0.3, // Lower temperature for more consistent factual output
   });
 
   // Check for duplicate report today
@@ -202,16 +465,16 @@ async function generateCategoryReport(
     INSERT INTO reports (title, content, format, category, period_start, period_end)
     VALUES ($1, $2, 'markdown', $3, NOW() - INTERVAL '${hours} hours', NOW())
     RETURNING *
-  `, [config.title(date), summary, category]);
+  `, [config.title(date, lang), summary, category]);
 
-  info(sessionId, sessionId, `Report created: ${report.rows[0].id} (${category})`);
+  info(sessionId, sessionId, `Report created: ${report.rows[0].id} (${category}, ${lang})`);
   return report.rows[0];
 }
 
 /**
  * Generate daily summary report (all categories)
  */
-export async function generateDailySummary(): Promise<Report[]> {
+export async function generateDailySummary(lang: Language = 'zh'): Promise<Report[]> {
   const sessionId = `report-daily-${Date.now()}`;
   info(sessionId, sessionId, 'Starting daily report generation');
 
@@ -219,8 +482,8 @@ export async function generateDailySummary(): Promise<Report[]> {
 
   // Generate tech and world reports in parallel
   const [techReport, worldReport] = await Promise.all([
-    generateCategoryReport('tech', sessionId),
-    generateCategoryReport('world', sessionId),
+    generateCategoryReport('tech', sessionId, lang),
+    generateCategoryReport('world', sessionId, lang),
   ]);
 
   if (techReport) reports.push(techReport);
@@ -233,11 +496,11 @@ export async function generateDailySummary(): Promise<Report[]> {
 /**
  * Generate weekly trend analysis report
  */
-export async function generateWeeklyTrend(): Promise<Report> {
+export async function generateWeeklyTrend(lang: Language = 'zh'): Promise<Report | null> {
   const sessionId = `report-weekly-${Date.now()}`;
   info(sessionId, sessionId, 'Starting weekly trend analysis');
 
-  const report = await generateCategoryReport('weekly', sessionId);
+  const report = await generateCategoryReport('weekly', sessionId, lang);
 
   if (report) {
     info(sessionId, sessionId, `Weekly report created: ${report.id}`);
@@ -249,9 +512,9 @@ export async function generateWeeklyTrend(): Promise<Report> {
 /**
  * Generate report by category (manual trigger)
  */
-export async function generateReport(category: ReportCategory): Promise<Report | null> {
+export async function generateReport(category: ReportCategory, lang: Language = 'zh'): Promise<Report | null> {
   const sessionId = `report-${category}-${Date.now()}`;
-  return generateCategoryReport(category, sessionId);
+  return generateCategoryReport(category, sessionId, lang);
 }
 
 /**
@@ -275,4 +538,7 @@ export default {
   CATEGORY_MAPPINGS,
   REPORT_PROMPTS,
   MIN_ITEMS_THRESHOLD,
+  deduplicateHeadlines,
+  sampleByRecency,
+  jaccardSimilarity,
 };
