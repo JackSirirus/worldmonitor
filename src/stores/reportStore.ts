@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import { getCurrentLocale } from '@/i18n';
 
 export interface Report {
   id: number;
@@ -15,6 +16,16 @@ export interface Report {
   created_at: string;
 }
 
+/**
+ * Map frontend locale to backend language code
+ * Frontend: 'en', 'zh-cn', 'zh-tw'
+ * Backend: 'en', 'zh'
+ */
+function mapLocaleToLang(locale: string): 'en' | 'zh' {
+  if (locale.startsWith('zh')) return 'zh';
+  return 'en';
+}
+
 interface ReportState {
   // State
   reports: Report[];
@@ -24,6 +35,7 @@ interface ReportState {
   error: string | null;
   filter: {
     category: string | null;
+    lang: 'en' | 'zh';
   };
 
   // Actions
@@ -48,6 +60,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
   error: null,
   filter: {
     category: null,
+    lang: mapLocaleToLang(getCurrentLocale()),
   },
 
   // Actions
@@ -77,6 +90,7 @@ export const useReportStore = create<ReportState>((set, get) => ({
     try {
       const params = new URLSearchParams();
       if (filter.category) params.set('type', filter.category);
+      params.set('lang', filter.lang);
 
       const response = await fetch(`/api/reports?${params}`);
 
@@ -123,10 +137,11 @@ export const useReportStore = create<ReportState>((set, get) => ({
   },
 
   generateReport: async (category) => {
+    const { filter } = get();
     set({ isGenerating: true, error: null });
 
     try {
-      const response = await fetch(`/api/reports/generate/${category}`, {
+      const response = await fetch(`/api/reports/generate/${category}?lang=${filter.lang}`, {
         method: 'POST',
       });
 
@@ -156,5 +171,18 @@ export const useReportStore = create<ReportState>((set, get) => ({
     }
   },
 }));
+
+// Listen for language changes and update filter
+if (typeof document !== 'undefined') {
+  document.addEventListener('languagechanged', () => {
+    const store = useReportStore.getState();
+    const newLang = mapLocaleToLang(getCurrentLocale());
+    if (store.filter.lang !== newLang) {
+      store.setFilter({ lang: newLang });
+      // Refresh reports with new language
+      store.fetchReports();
+    }
+  });
+}
 
 export default useReportStore;

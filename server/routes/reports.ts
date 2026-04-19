@@ -25,32 +25,53 @@ export interface Report {
 
 /**
  * GET /api/reports
- * List all reports with pagination
+ * List all reports with pagination and optional language filter
  */
 router.get('/', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
     const category = req.query.category as string | undefined;
+    const lang = req.query.lang as string | undefined;
 
     let sql = 'SELECT id, title, format, category, period_start, period_end, created_at FROM reports';
     const params: (string | number)[] = [];
+    const conditions: string[] = [];
 
     if (category) {
-      sql += ' WHERE category = $1';
+      conditions.push(`category = $${params.length + 1}`);
       params.push(category);
-      sql += ' ORDER BY created_at DESC LIMIT $2 OFFSET $3';
-      params.push(limit, offset);
-    } else {
-      sql += ' ORDER BY created_at DESC LIMIT $1 OFFSET $2';
-      params.push(limit, offset);
     }
 
+    if (lang) {
+      // Filter by language suffix in title
+      // zh reports have Chinese title, en reports have English title
+      if (lang === 'zh') {
+        conditions.push(`title LIKE '%简报%' OR title LIKE '%每日%' OR title LIKE '%趋势%' OR title LIKE '%周%'`);
+      } else {
+        conditions.push(`title LIKE '%Brief%' OR title LIKE '%Daily%' OR title LIKE '%Weekly%' OR title LIKE '%Trend%'`);
+      }
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    sql += ' ORDER BY created_at DESC';
+    if (conditions.length > 0) {
+      sql += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    } else {
+      sql += ` LIMIT $1 OFFSET $2`;
+    }
+    params.push(limit, offset);
+
     const result = await query<Report>(sql, params);
-    const countResult = await query<{ count: string }>(
-      'SELECT COUNT(*) as count FROM reports' + (category ? ' WHERE category = $1' : ''),
-      category ? [category] : []
-    );
+
+    let countSql = 'SELECT COUNT(*) as count FROM reports';
+    if (conditions.length > 0) {
+      countSql += ' WHERE ' + conditions.join(' AND ');
+    }
+    const countResult = await query<{ count: string }>(countSql, category ? [category] : []);
 
     res.json({
       reports: result.rows,
