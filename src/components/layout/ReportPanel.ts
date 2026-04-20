@@ -6,6 +6,7 @@
 import { useReportStore, type Report } from '@/stores';
 import { t } from '@/i18n';
 import { escapeHtml } from '@/utils/sanitize';
+import { showReportModal } from './ReportModal';
 
 export class ReportPanel {
   private container: HTMLElement;
@@ -64,7 +65,6 @@ export class ReportPanel {
       <div class="report-list" id="report-list">
         ${state.isLoading ? '<div class="report-loading">Loading...</div>' : reportsHtml}
       </div>
-      ${state.currentReport ? this.renderCurrentReport(state.currentReport) : ''}
     `;
   }
 
@@ -89,20 +89,6 @@ export class ReportPanel {
         </div>
       `;
     }).join('');
-  }
-
-  private renderCurrentReport(report: Report): string {
-    return `
-      <div class="report-detail" id="report-detail">
-        <div class="report-detail-header">
-          <h4>${escapeHtml(report.title)}</h4>
-          <button class="report-detail-close" id="close-report-detail">✕</button>
-        </div>
-        <div class="report-detail-content">
-          ${report.content ? escapeHtml(report.content) : 'No content available'}
-        </div>
-      </div>
-    `;
   }
 
   private bindEvents(): void {
@@ -161,21 +147,13 @@ export class ReportPanel {
             const response = await fetch(`/api/reports/${id}`);
             if (response.ok) {
               const report = await response.json();
-              this.store.getState().setCurrentReport(report);
-              this.render();
+              showReportModal(report); // Show in floating modal instead of inline
             }
           } catch (error) {
             console.error('Failed to fetch report:', error);
           }
         }
       }
-    });
-
-    // Close report detail
-    const closeBtn = this.element.querySelector('#close-report-detail');
-    closeBtn?.addEventListener('click', () => {
-      this.store.getState().setCurrentReport(null);
-      this.render();
     });
 
     // Subscribe to store changes
